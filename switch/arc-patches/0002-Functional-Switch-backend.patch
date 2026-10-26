@@ -1,0 +1,226 @@
+From 8dc65d546f66d71477449d57fce83bb3457a2db5 Mon Sep 17 00:00:00 2001
+From: Justin Marentette <justinmarentette11@gmail.com>
+Date: Fri, 13 Dec 2024 22:20:00 -0500
+Subject: [PATCH 2/5] Functional Switch backend
+
+---
+ arc-core/src/arc/Application.java             |  8 +++-
+ arc-core/src/arc/graphics/gl/GLVersion.java   |  1 +
+ arc-core/src/arc/util/OS.java                 |  1 +
+ .../backend/switchgdx/SwitchApplication.java  | 28 +++--------
+ .../arc/backend/switchgdx/SwitchInput.java    | 46 ++++++++++++++-----
+ 5 files changed, 49 insertions(+), 35 deletions(-)
+
+diff --git a/arc-core/src/arc/Application.java b/arc-core/src/arc/Application.java
+index 704c260c..34ea0d8b 100644
+--- a/arc-core/src/arc/Application.java
++++ b/arc-core/src/arc/Application.java
+@@ -51,8 +51,12 @@ public interface Application extends Disposable{
+         return getType() == ApplicationType.iOS;
+     }
+ 
++    default boolean isSwitchGdx(){
++        return getType() == ApplicationType.switchGdx;
++    }
++
+     default boolean isMobile(){
+-        return isAndroid() || isIOS();
++        return isAndroid() || isIOS() || isSwitchGdx();
+     }
+ 
+     default boolean isWeb(){
+@@ -138,6 +142,6 @@ public interface Application extends Disposable{
+ 
+     /** Enumeration of possible {@link Application} types */
+     enum ApplicationType{
+-        android, desktop, headless, web, iOS
++        android, desktop, headless, web, iOS, switchGdx
+     }
+ }
+diff --git a/arc-core/src/arc/graphics/gl/GLVersion.java b/arc-core/src/arc/graphics/gl/GLVersion.java
+index c80cf866..8253f175 100644
+--- a/arc-core/src/arc/graphics/gl/GLVersion.java
++++ b/arc-core/src/arc/graphics/gl/GLVersion.java
+@@ -18,6 +18,7 @@ public class GLVersion{
+     public GLVersion(Application.ApplicationType appType, String versionString, String vendorString, String rendererString){
+         if(appType == Application.ApplicationType.android) this.type = GlType.GLES;
+         else if(appType == Application.ApplicationType.iOS) this.type = GlType.GLES;
++        else if(appType == Application.ApplicationType.switchGdx) this.type = GlType.GLES;
+         else if(appType == Application.ApplicationType.desktop) this.type = GlType.OpenGL;
+         else if(appType == Application.ApplicationType.web) this.type = GlType.WebGL;
+         else this.type = GlType.NONE;
+diff --git a/arc-core/src/arc/util/OS.java b/arc-core/src/arc/util/OS.java
+index cc10572b..6f481959 100644
+--- a/arc-core/src/arc/util/OS.java
++++ b/arc-core/src/arc/util/OS.java
+@@ -31,6 +31,7 @@ public class OS{
+     public static boolean isMac = propNoNull("os.name").contains("Mac");
+     public static boolean isIos = false;
+     public static boolean isAndroid = false;
++    public static boolean isSwitchGdx = propNoNull("os.name").contains("horizon") || propNoNull("os.name").contains("uwp") || propNoNull("os.name").contains("unknown");
+     public static boolean isARM = propNoNull("os.arch").startsWith("arm") || propNoNull("os.arch").startsWith("aarch64");
+     public static boolean is64Bit = propNoNull("os.arch").contains("64") || propNoNull("os.arch").startsWith("armv8");
+     public static boolean isMobile;
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+index aa0d13ed..979c565d 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+@@ -50,15 +50,11 @@ public class SwitchApplication implements Application {
+                 }
+ 
+                 graphics.update();
+-//                audio.update(graphics.getDeltaTime());
+                 input.update();
+-//                controllerManager.update();
+-//                Timer.instance().update();
+                 defaultUpdate();
+                 listen(ApplicationListener::update);
+                 runnables.run();
+-                
+-//                System.gc();
++                input.processDevices();
+             }
+         } catch (Throwable t) {
+             System.out.println("Uncaught Exception:");
+@@ -83,7 +79,7 @@ public class SwitchApplication implements Application {
+ 
+     @Override
+     public ApplicationType getType() {
+-        return ApplicationType.android;
++        return ApplicationType.switchGdx;
+     }
+ 
+     @Override
+@@ -113,6 +109,9 @@ public class SwitchApplication implements Application {
+         }
+     }
+ 
++    @Override
++    public native boolean openURI(String URI);
++
+     private static native void init(boolean vsync);
+ 
+     private static native boolean update();
+@@ -122,9 +121,7 @@ public class SwitchApplication implements Application {
+     public static class Config {
+ 
+         private boolean vsync = true;
+-
+-        private ApplicationType appType = ApplicationType.android;
+-
++        
+         public Config() {
+         }
+ 
+@@ -132,11 +129,6 @@ public class SwitchApplication implements Application {
+             this.vsync = vsync;
+         }
+ 
+-        public Config(boolean vsync, ApplicationType appType) {
+-            this.vsync = vsync;
+-            this.appType = appType;
+-        }
+-
+         public boolean getVsync() {
+             return vsync;
+         }
+@@ -144,13 +136,5 @@ public class SwitchApplication implements Application {
+         public void setVsync(boolean vsync) {
+             this.vsync = vsync;
+         }
+-
+-        public ApplicationType getAppType() {
+-            return appType;
+-        }
+-
+-        public void setAppType(ApplicationType appType) {
+-            this.appType = appType;
+-        }
+     }
+ }
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+index 4b888c2f..9e321e0a 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+@@ -1,6 +1,7 @@
+ package arc.backend.switchgdx;
+ 
+ import arc.Input;
++import arc.input.InputDevice;
+ import arc.input.InputProcessor;
+ import arc.input.KeyCode;
+ 
+@@ -10,9 +11,10 @@ public class SwitchInput extends Input {
+     
+     private static final KeyCode[] SWITCH_KEYS = {
+         KeyCode.controllerA, KeyCode.controllerB, KeyCode.controllerX, KeyCode.controllerY,
+-        KeyCode.dpadUp, KeyCode.dpadDown, KeyCode.dpadLeft, KeyCode.dpadRight,
+-        KeyCode.buttonThumbL, KeyCode.buttonThumbR, KeyCode.buttonSelect, KeyCode.buttonStart,
+-        KeyCode.buttonL1, KeyCode.buttonL2, KeyCode.buttonR1, KeyCode.buttonR2,
++        KeyCode.buttonThumbL, KeyCode.buttonThumbR,
++        KeyCode.buttonL1, KeyCode.buttonR1, KeyCode.buttonL2, KeyCode.buttonR2,
++        KeyCode.escape, KeyCode.buttonStart,
++        KeyCode.a, KeyCode.w, KeyCode.d, KeyCode.s, 
+     };
+ 
+     private long currentEventTimeStamp;
+@@ -25,6 +27,8 @@ public class SwitchInput extends Input {
+     private final int[] deltaY = new int[MAX_TOUCHES];
+     private final boolean[] touched = new boolean[MAX_TOUCHES];
+     private boolean wasJustTouched;
++    private int prevButtons;
++    private final float[] axes = new float[4];
+ 
+     public SwitchInput () {
+         for (int i = 0; i < MAX_TOUCHES; i++) {
+@@ -101,14 +105,26 @@ public class SwitchInput extends Input {
+ 
+         System.arraycopy(touchData, 0, previousTouchData, 0, MAX_TOUCHES * 3);
+ 
+-//        SwitchController currentController = (SwitchController)SwitchControllerManager.getInstance().getCurrentController();
+-//        for (int key: SWITCH_KEYS) {
+-//            int button = keyToButton(key);
+-//            if (currentController.getButtonPressed(button) && inputProcessor != null)
+-//                inputProcessor.keyDown(key);
+-//            if (currentController.getButtonReleased(button) && inputProcessor != null)
+-//                inputProcessor.keyUp(key);
+-//        }
++        int buttons = getButtons(-1);
++        getAxes(-1, axes);
++        if (Math.abs(axes[0]) > 0.1f)
++            buttons |= axes[0] < 0 ? 1 << 12 : 1 << 14;
++        if (Math.abs(axes[1]) > 0.1f)
++            buttons |= axes[1] < 0 ? 1 << 13 : 1 << 15;
++        for (int i = 0; i < 16; i++) {
++            int bit = 1 << i;
++            if ((buttons & bit) != 0 && (prevButtons & bit) == 0)
++                inputMultiplexer.keyDown(SWITCH_KEYS[i]);
++            else if ((buttons & bit) == 0 && (prevButtons & bit) != 0)
++                inputMultiplexer.keyUp(SWITCH_KEYS[i]);
++        }
++        prevButtons = buttons;
++    }
++
++    void processDevices(){
++        for (InputDevice device : devices) {
++            device.postUpdate();
++        }
+     }
+     
+     @Override
+@@ -180,4 +196,12 @@ public class SwitchInput extends Input {
+     public native void getTextInput(TextInput input);
+     
+     private static native void getTouchData(int[] touchData);
++    
++    private static native int getButtons(int controller);
++
++    private static native void getAxes(int controller, float[] axes);
++    
++    private static native boolean isConnected(int controller);
++    
++    private static native void remapControllers(int min, int max, boolean dualJoy, boolean singleMode);
+ }
+-- 
+2.43.0
+

@@ -519,6 +519,10 @@ public class Mods implements Loadable{
         .retainAll(f -> f.extEquals("jar") || f.extEquals("zip") || (f.isDirectory() && Structs.contains(metaFiles, meta -> resolveRoot(f).child(meta).exists())))
         .each(candidates::add);
 
+        Seq.with(Core.files.internal("mods").list())
+                .retainAll(f -> f.extEquals("jar") || f.extEquals("zip") || (f.isDirectory() && Structs.contains(metaFiles, meta -> f.child(meta).exists())))
+                .each(candidates::add);
+
         // Add Steam workshop mods
         platform.getWorkshopContent(LoadedMod.class)
         .each(candidates::add);
@@ -1185,7 +1189,7 @@ public class Mods implements Loadable{
                 if(ios){
                     throw new ModLoadException("Java class mods are not supported on iOS.");
                 }
-
+                
                 loader = platform.loadJar(sourceFile, mainLoader);
                 mainLoader.addChild(loader);
                 Class<?> main = Class.forName(mainClass, true, loader);

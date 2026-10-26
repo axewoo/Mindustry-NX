@@ -274,6 +274,15 @@ project(":desktop"){
     }
 }
 
+if(findProject(":switch") != null) project(":switch"){
+    apply plugin: "java"
+
+    dependencies{
+        implementation project(":core")
+        implementation arcModule("backends:backend-switchgdx")
+    }
+}
+
 project(":core"){
     apply plugin: "java-library"
     apply plugin: "kotlin"

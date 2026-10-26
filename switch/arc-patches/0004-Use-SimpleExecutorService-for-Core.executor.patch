@@ -1,0 +1,25 @@
+From 32ce7bfcb6198cd4d26a3dbb4c71c60a8d342a6a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 16:30:58 +0000
+Subject: [PATCH 4/5] Use SimpleExecutorService for Core.executor
+
+---
+ arc-core/src/arc/Core.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arc-core/src/arc/Core.java b/arc-core/src/arc/Core.java
+index 4032f951..ef9fc9c3 100644
+--- a/arc-core/src/arc/Core.java
++++ b/arc-core/src/arc/Core.java
+@@ -29,7 +29,7 @@ public class Core{
+     public static Scene scene;
+     public static AssetManager assets;
+     public static TextureAtlas atlas;
+-    public static ExecutorService executor = Threads.executor("Main Executor", OS.cores);
++    public static ExecutorService executor = new SimpleExecutorService("Main Executor", OS.cores);
+ 
+     public static GL20 gl;
+     public static GL20 gl20;
+-- 
+2.43.0
+

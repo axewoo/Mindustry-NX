@@ -205,6 +205,8 @@ public class Vars implements Loadable{
     public static boolean ios;
     /** whether the game is running on an Android device */
     public static boolean android;
+    /** whether the game is running on the SwitchGDX backend (Nintendo Switch homebrew) */
+    public static boolean switchGdx;
     /** whether the game is running on a headless server */
     public static boolean headless;
     /** whether steam is enabled for this game */
@@ -379,6 +381,7 @@ public class Vars implements Loadable{
         mobile = Core.app.isMobile() || testMobile;
         ios = Core.app.isIOS();
         android = Core.app.isAndroid();
+        switchGdx = Core.app.isSwitchGdx();
 
         becontrol.init();
 

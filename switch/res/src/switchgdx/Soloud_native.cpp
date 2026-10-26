@@ -58,6 +58,10 @@ jint SM_arc_audio_Soloud_backendBufferSize_R_int(jcontext ctx) {
     return soloud.getBackendBufferSize();
 }
 
+jint SM_arc_audio_Soloud_activeVoiceCount_R_int(jcontext ctx) {
+    return (jint) soloud.getActiveVoiceCount();
+}
+
 jint SM_arc_audio_Soloud_version_R_int(jcontext ctx) {
     return soloud.getVersion();
 }
@@ -150,7 +154,7 @@ jlong SM_arc_audio_Soloud_busNew_R_long(jcontext ctx) {
     return (jlong) (new Bus());
 }
 
-jlong SM_arc_audio_Soloud_wavLoad_Array1_byte_int_R_long(jcontext ctx, jobject bytes_object, jint length) {
+jlong SM_arc_audio_Soloud_wavLoadBytes_Array1_byte_int_R_long(jcontext ctx, jobject bytes_object, jint length) {
     auto bytes = (jbyte *) ((jarray) bytes_object)->data;
 
     Wav *wav = new Wav();
@@ -214,7 +218,7 @@ jbool SM_arc_audio_Soloud_idValid_int_R_boolean(jcontext ctx, jint voice) {
     return soloud.isValidVoiceHandle(voice);
 }
 
-jlong SM_arc_audio_Soloud_streamLoad_java_lang_String_R_long(jcontext ctx, jobject path_object) {
+jlong SM_arc_audio_Soloud_streamLoadFile_java_lang_String_R_long(jcontext ctx, jobject path_object) {
     auto path = stringToNative(ctx, (jstring) path_object);
 
     WavStream *stream = new WavStream();
@@ -224,6 +228,35 @@ jlong SM_arc_audio_Soloud_streamLoad_java_lang_String_R_long(jcontext ctx, jobje
     if (result != 0) throwError(ctx, result);
 
     return (jlong) stream;
+}
+
+jlong SM_arc_audio_Soloud_wavLoadFile_java_lang_String_R_long(jcontext ctx, jobject path_object) {
+    auto path = stringToNative(ctx, (jstring) path_object);
+
+    Wav *wav = new Wav();
+
+    int result = wav->load(path);
+
+    if (result != 0) throwError(ctx, result);
+
+    return (jlong) wav;
+}
+
+jlong SM_arc_audio_Soloud_streamLoadBytes_Array1_byte_int_R_long(jcontext ctx, jobject bytes_object, jint length) {
+    auto bytes = (jbyte *) ((jarray) bytes_object)->data;
+
+    WavStream *stream = new WavStream();
+
+    int result = stream->loadMem((unsigned char *) bytes, length, true, true);
+
+    if (result != 0) throwError(ctx, result);
+
+    return (jlong) stream;
+}
+
+jdouble SM_arc_audio_Soloud_wavLength_long_R_double(jcontext ctx, jlong handle) {
+    Wav *source = (Wav *) handle;
+    return (jdouble) source->getLength();
 }
 
 jdouble SM_arc_audio_Soloud_streamLength_long_R_double(jcontext ctx, jlong handle) {
@@ -284,4 +317,26 @@ void SM_arc_audio_Soloud_sourceStop_long(jcontext ctx, jlong handle) {
 
 void SM_arc_audio_Soloud_sourceFilter_long_int_long(jcontext ctx, jlong handle, jint index, jlong filter) {
     ((AudioSource *) handle)->setFilter(index, ((Filter *) filter));
+}
+
+void SM_arc_audio_Soloud_sourceSingleInstance_long_boolean(jcontext ctx, jlong handle, jbool single) {
+    ((AudioSource *) handle)->setSingleInstance(single);
+}
+
+// Voice priority and concurrency limits come from Anuken's SoLoud fork, which the bundled
+// SoLoud doesn't have: these are no-ops, so sounds play without per-sound voice limits.
+void SM_arc_audio_Soloud_sourcePriority_long_float(jcontext ctx, jlong handle, jfloat priority) {}
+
+void SM_arc_audio_Soloud_sourceMinConcurrentInterrupt_long_float(jcontext ctx, jlong handle, jfloat value) {}
+
+void SM_arc_audio_Soloud_sourceMaxConcurrent_long_int(jcontext ctx, jlong handle, jint maxConcurrent) {}
+
+void SM_arc_audio_Soloud_sourceConcurrentGroup_long_int(jcontext ctx, jlong handle, jint group) {}
+
+jint SM_arc_audio_Soloud_pauseDevice_R_int(jcontext ctx) {
+    return soloud.pause();
+}
+
+jint SM_arc_audio_Soloud_resumeDevice_R_int(jcontext ctx) {
+    return soloud.resume();
 }

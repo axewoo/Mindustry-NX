@@ -74,6 +74,9 @@ java -jar "$TRANSPILER_JAR" \
     --source "$ROOT/switch/src/main/java" "$ROOT/switch/src/jdk/java" "$ROOT/core/src" \
     --config "$ROOT/switch/switch.json"
 
+# Clearwing's Proxy.cpp uses std::find_if without <algorithm>, which GCC 15's headers no longer pull in
+sed -i '1i #include <algorithm>' "$DIST/src/Proxy.cpp"
+
 echo "== Collecting resources"
 for dir in "$JARS"/*/; do
     # Native code shipped inside jars

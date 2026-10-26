@@ -1,7 +1,7 @@
 From 7641dd5f95d9b579e08fb63655b67a4c406485f3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 26 Oct 2026 17:05:21 +0000
-Subject: [PATCH 6/7] Switch backend: clear per-frame key state, controller key
+Subject: [PATCH 6/8] Switch backend: clear per-frame key state, controller key
  codes, virtual pointer API for controller support
 
 ---

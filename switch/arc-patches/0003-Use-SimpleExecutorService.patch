@@ -1,7 +1,7 @@
 From 3414e61f9e5156082117c073d0a2b29aae47462b Mon Sep 17 00:00:00 2001
 From: Justin Marentette <justinmarentette11@gmail.com>
 Date: Sun, 2 Mar 2025 15:17:13 -0500
-Subject: [PATCH 3/7] Use SimpleExecutorService
+Subject: [PATCH 3/8] Use SimpleExecutorService
 
 ---
  arc-core/src/arc/Settings.java                |   2 +-

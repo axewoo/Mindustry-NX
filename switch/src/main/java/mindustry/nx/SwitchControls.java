@@ -29,11 +29,13 @@ public class SwitchControls implements ApplicationListener{
     btnL = 1 << 6, btnR = 1 << 7, btnZL = 1 << 8, btnZR = 1 << 9, btnPlus = 1 << 10, btnMinus = 1 << 11,
     btnLeft = 1 << 12, btnUp = 1 << 13, btnRight = 1 << 14, btnDown = 1 << 15;
 
-    static final float deadzone = 0.15f, cursorSpeed = 16f, cameraSpeed = 14f, zoomSpeed = 0.06f;
+    static final float deadzone = 0.15f, cameraSpeed = 14f, zoomSpeed = 0.06f;
+    /** Cursor speed in pixels per frame at 1280 wide: it starts slow for precision and speeds up while the stick is held. */
+    static final float cursorMinSpeed = 3.5f, cursorMaxSpeed = 10f, cursorRampTime = 40f;
     /** Seconds without cursor input before the cursor hides. */
     static final float hideTime = 6f;
 
-    float cursorX = -1, cursorY = -1, idle = hideTime, scrollRepeat;
+    float cursorX = -1, cursorY = -1, idle = hideTime, scrollRepeat, cursorHeld;
     int lastButtons;
     boolean visible;
 
@@ -60,11 +62,12 @@ public class SwitchControls implements ApplicationListener{
 
         boolean active = buttons != 0;
 
-        //cursor: right stick (squared for precision), d-pad left / right nudges
-        float rx = stick(in.getControllerAxis(2)), ry = stick(in.getControllerAxis(3));
-        float scale = w / 1280f * Time.delta;
-        cursorX += rx * Math.abs(rx) * cursorSpeed * scale;
-        cursorY += ry * Math.abs(ry) * cursorSpeed * scale;
+        //cursor: right stick (squared for precision, faster the longer it is held), d-pad left / right nudges
+        float rx = stick(in.getControllerAxis(2)), ry = -stick(in.getControllerAxis(3));
+        cursorHeld = rx != 0 || ry != 0 ? Math.min(cursorHeld + Time.delta, cursorRampTime) : 0f;
+        float step = Mathf.lerp(cursorMinSpeed, cursorMaxSpeed, cursorHeld / cursorRampTime) * w / 1280f * Time.delta;
+        cursorX += rx * Math.abs(rx) * step;
+        cursorY += ry * Math.abs(ry) * step;
         if((pressed & btnLeft) != 0) cursorX -= 4f * w / 1280f;
         if((pressed & btnRight) != 0) cursorX += 4f * w / 1280f;
         if((pressed & btnR3) != 0){
@@ -95,7 +98,7 @@ public class SwitchControls implements ApplicationListener{
 
         if(state.isGame() && !Core.scene.hasDialog() && control.input instanceof MobileInput input){
             //camera: left stick; the player's unit follows the camera on touch controls
-            float lx = stick(in.getControllerAxis(0)), ly = stick(in.getControllerAxis(1));
+            float lx = stick(in.getControllerAxis(0)), ly = -stick(in.getControllerAxis(1));
             if(lx != 0 || ly != 0){
                 float speed = cameraSpeed * Core.camera.width / w * Time.delta;
                 Core.camera.position.add(lx * speed, ly * speed);

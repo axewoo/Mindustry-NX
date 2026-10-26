@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      crash_offsets:
+        description: "Offsets from an Atmosphère crash report (the 0x... in 'Mindustry + 0x...'), space separated, to symbolize"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -81,6 +86,18 @@ jobs:
         with:
           path: Mindustry/build/Mindustry
           key: switch-objs-${{ github.sha }}-${{ github.run_attempt }}
+
+      - name: Symbolize crash offsets
+        if: ${{ inputs.crash_offsets != '' }}
+        env:
+          OFFSETS: ${{ inputs.crash_offsets }}
+        run: |
+          ELF=Mindustry/build/Mindustry/build-switch/Mindustry.elf
+          [ -f "$ELF" ] || ELF=Mindustry/build/Mindustry/build-switch/Mindustry
+          for off in $OFFSETS; do
+            echo "== $off"
+            "$DEVKITPRO/devkitA64/bin/aarch64-none-elf-addr2line" -f -C -i -e "$ELF" "$off"
+          done
 
       - name: Copy NRO
         run: cp Mindustry/build/Mindustry/build-switch/Mindustry.nro Mindustry.nro

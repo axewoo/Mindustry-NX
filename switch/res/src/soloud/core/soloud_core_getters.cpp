@@ -68,6 +68,11 @@ namespace SoLoud
 
 		int ch = (aVoiceHandle & 0xfff) - 1;
 		unsigned int idx = aVoiceHandle >> 12;
+		// Arc passes -1 for sounds that never started; 0xfff would index past mVoice
+		if (ch < 0 || ch >= VOICE_COUNT)
+		{
+			return -1;
+		}
 		if (mVoice[ch] &&
 			(mVoice[ch]->mPlayIndex & 0xfffff) == idx)
 		{

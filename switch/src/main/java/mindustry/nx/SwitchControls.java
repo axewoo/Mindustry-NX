@@ -39,7 +39,7 @@ public class SwitchControls implements ApplicationListener{
 
     @Override
     public void update(){
-        if(!(Core.input instanceof SwitchInput in)) return;
+        if(!(Core.input instanceof SwitchInput in) || state == null || Core.scene == null) return;
 
         float w = Core.graphics.getWidth(), h = Core.graphics.getHeight();
         if(cursorX < 0){

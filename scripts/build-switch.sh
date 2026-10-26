@@ -46,6 +46,11 @@ for jar in "$DEPS"/libs/*.jar; do
     mkdir -p "$dir"
     unzip -q -o "$jar" -d "$dir" -x 'META-INF/*'
 done
+# arcnet is built on NIO channels and datagram sockets the Clearwing runtime lacks, and
+# multiplayer is stubbed out on Switch: drop it, switch/src keeps the two classes core's Net uses
+for dir in "$JARS"/arcnet*/; do
+    [ -d "$dir" ] && rm -rf "${dir:?}"
+done
 # Classes in switch/src replace the same classes from core and Arc: drop the originals
 (cd "$DEPS/classes" && find . -name '*.class' -not -name '*$*') | while read -r cls; do
     base="${cls%.class}"
@@ -64,9 +69,9 @@ fi
 
 echo "== Transpiling Java bytecode to C++"
 java -jar "$TRANSPILER_JAR" \
-    --input "$JARS"/*/ "${MODS[@]}" "$DEPS/classes" \
+    --input "$JARS"/*/ "${MODS[@]}" "$DEPS/classes" "$DEPS/jdk" \
     --output "$DIST" \
-    --source "$ROOT/switch/src/main/java" "$ROOT/core/src" \
+    --source "$ROOT/switch/src/main/java" "$ROOT/switch/src/jdk/java" "$ROOT/core/src" \
     --config "$ROOT/switch/switch.json"
 
 echo "== Collecting resources"

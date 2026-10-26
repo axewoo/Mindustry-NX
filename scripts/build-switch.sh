@@ -17,11 +17,16 @@ VERSION="$(sed -n 's/^buildversion=//p' gradle.properties)"
 
 # Clearwing transpiler: JitPack does not serve the 3.1.x builds, so build the
 # matching tag from source (its Gradle 7.4 wrapper needs a JDK 17, not newer).
-CW_DIR="$ROOT/build/clearwing-$CLEARWING"
+# Its class parser asks ASM for the Java 11 API level, which rejects the
+# PermittedSubclasses attribute that javac 17 writes for enums with constant
+# bodies, so raise it to ASM9 (the bundled ASM 9.7 supports it).
+CW_DIR="$ROOT/build/clearwing-$CLEARWING-asm9"
 TRANSPILER_JAR="$CW_DIR/transpiler/build/libs/transpiler-$CLEARWING.jar"
 if [ ! -f "$TRANSPILER_JAR" ]; then
     rm -rf "${CW_DIR:?}"
     git clone -q --depth 1 -b "v$CLEARWING" https://github.com/TheLogicMaster/clearwing-vm "$CW_DIR"
+    sed -i 's/Opcodes\.ASM[5-8]\b/Opcodes.ASM9/g' "$CW_DIR/transpiler/src/com/thelogicmaster/clearwing/Parser.java"
+    grep -q 'Opcodes.ASM9' "$CW_DIR/transpiler/src/com/thelogicmaster/clearwing/Parser.java"
     (cd "$CW_DIR" && JITPACK=1 bash ./gradlew --no-daemon --console=plain :transpiler:shadowJar)
 fi
 

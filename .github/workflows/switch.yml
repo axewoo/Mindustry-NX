@@ -10,6 +10,11 @@ on:
 permissions:
   contents: write
 
+# A newer push makes an older build pointless (tags and master keep every run)
+concurrency:
+  group: switch-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   nro:
     name: Nintendo Switch NRO

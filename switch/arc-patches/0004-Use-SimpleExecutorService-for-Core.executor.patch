@@ -1,7 +1,7 @@
 From 36ae428140492a7f6f6dabc620fa8a4f39a821fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 26 Oct 2026 16:30:58 +0000
-Subject: [PATCH 4/6] Use SimpleExecutorService for Core.executor
+Subject: [PATCH 4/7] Use SimpleExecutorService for Core.executor
 
 ---
  arc-core/src/arc/Core.java | 2 +-

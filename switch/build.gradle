@@ -1,25 +1,13 @@
 // The transpile and NRO steps live in scripts/build-switch.sh. This module only
-// compiles the launcher and the Switch replacements for a few core classes, and
-// gathers the class files the Clearwing transpiler needs into build/switch-deps.
-
-// Core classes that are replaced by versions in switch/src (see their javadoc).
-def replacedCoreClasses = [
-    'mindustry/net/ArcNetProvider*.class',
-    'mindustry/net/BeControl*.class',
-]
+// compiles the launcher, the controller support and the Switch replacements for a few
+// core and Arc classes (scripts/build-switch.sh drops the originals), and gathers the
+// runtime jars the Clearwing transpiler needs into build/switch-deps.
 
 tasks.register('switchDeps', Sync){
     group = 'SwitchGDX'
     description = 'Collect the classes and runtime jars for the Clearwing transpiler into build/switch-deps'
-    dependsOn 'classes', ':core:jar'
+    dependsOn 'classes'
     into layout.buildDirectory.dir('switch-deps')
-
-    def coreJar = project(':core').tasks.named('jar').flatMap{ it.archiveFile }
     from(layout.buildDirectory.dir('classes/java/main')){ into 'classes' }
-    from({ zipTree(coreJar.get()) }){
-        into 'core'
-        exclude replacedCoreClasses
-        exclude 'META-INF/**'
-    }
-    from({ configurations.runtimeClasspath.filter{ it.isFile() && it != coreJar.get().asFile } }){ into 'libs' }
+    from(configurations.runtimeClasspath.filter{ it.isFile() }){ into 'libs' }
 }

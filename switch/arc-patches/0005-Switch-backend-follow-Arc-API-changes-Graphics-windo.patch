@@ -1,7 +1,7 @@
 From 81923d9f1629570b534233074ac194053efe8deb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 26 Oct 2026 16:55:31 +0000
-Subject: [PATCH 5/6] Switch backend: follow Arc API changes (Graphics window
+Subject: [PATCH 5/7] Switch backend: follow Arc API changes (Graphics window
  methods, InputDevice removal)
 
 ---

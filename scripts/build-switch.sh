@@ -20,7 +20,7 @@ VERSION="$(sed -n 's/^buildversion=//p' gradle.properties)"
 CW_DIR="$ROOT/build/clearwing-$CLEARWING"
 TRANSPILER_JAR="$CW_DIR/transpiler/build/libs/transpiler-$CLEARWING.jar"
 if [ ! -f "$TRANSPILER_JAR" ]; then
-    rm -rf "$CW_DIR"
+    rm -rf "${CW_DIR:?}"
     git clone -q --depth 1 -b "v$CLEARWING" https://github.com/TheLogicMaster/clearwing-vm "$CW_DIR"
     (cd "$CW_DIR" && JITPACK=1 bash ./gradlew --no-daemon --console=plain :transpiler:shadowJar)
 fi
@@ -31,8 +31,26 @@ fi
 DEPS="$ROOT/switch/build/switch-deps"
 OUT="$ROOT/build/Mindustry"         # directory name becomes the NRO name
 DIST="$ROOT/build/dist"
-rm -rf "$DIST"
-mkdir -p "$DIST/src" "$DIST/romfs/classpath" "$OUT"
+JARS="$ROOT/build/switch-jars"
+rm -rf "${DIST:?}" "${JARS:?}"
+mkdir -p "$DIST/src" "$DIST/romfs/classpath" "$OUT" "$JARS"
+
+echo "== Unpacking runtime jars"
+for jar in "$DEPS"/libs/*.jar; do
+    dir="$JARS/$(basename "$jar" .jar)"
+    mkdir -p "$dir"
+    unzip -q -o "$jar" -d "$dir" -x 'META-INF/*'
+done
+# Classes in switch/src replace the same classes from core and Arc: drop the originals
+(cd "$DEPS/classes" && find . -name '*.class' -not -name '*$*') | while read -r cls; do
+    base="${cls%.class}"
+    for dir in "$JARS"/*/; do
+        if [ -f "$dir/$cls" ]; then
+            echo "replacing ${base#./} from $(basename "$dir")"
+            rm -f "${dir:?}/${cls:?}" "${dir:?}/${base:?}"\$*.class
+        fi
+    done
+done
 
 MODS=()
 if [ -d switch/mods ]; then
@@ -41,25 +59,20 @@ fi
 
 echo "== Transpiling Java bytecode to C++"
 java -jar "$TRANSPILER_JAR" \
-    --input "$DEPS"/libs/*.jar "${MODS[@]}" "$DEPS/classes" "$DEPS/core" \
+    --input "$JARS"/*/ "${MODS[@]}" "$DEPS/classes" \
     --output "$DIST" \
     --source "$ROOT/switch/src/main/java" "$ROOT/core/src" \
     --config "$ROOT/switch/switch.json"
 
 echo "== Collecting resources"
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-for jar in "$DEPS"/libs/*.jar; do
-    rm -rf "$TMP/x" && mkdir "$TMP/x"
-    unzip -q -o "$jar" -d "$TMP/x" || true
+for dir in "$JARS"/*/; do
     # Native code shipped inside jars
-    (cd "$TMP/x" && find . -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' -o -name '*.c' \) \
+    (cd "$dir" && find . -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' -o -name '*.c' \) \
         -print0 | rsync -a --from0 --files-from=- ./ "$DIST/src/")
     # Everything else that is not class files goes on the romfs classpath
-    (cd "$TMP/x" && find . -type f \
+    (cd "$dir" && find . -type f \
         -not -name '*.class' -not -name '*.gwt.xml' \
-        -not -name '*.cpp' -not -name '*.hpp' -not -name '*.h' -not -name '*.c' \
-        -not -path './META-INF/*' -not -path './switchgdx/*' -print0 \
+        -not -name '*.cpp' -not -name '*.hpp' -not -name '*.h' -not -name '*.c' -print0 \
         | rsync -a --from0 --files-from=- ./ "$DIST/romfs/classpath/")
 done
 for mod in "${MODS[@]}"; do
@@ -67,7 +80,7 @@ for mod in "${MODS[@]}"; do
         --exclude 'classes.dex' "$mod" "$DIST/romfs/mods/$(basename "$mod")/"
 done
 cp -r core/assets/. "$DIST/romfs/"
-rm -rf "$DIST/romfs/cache"
+rm -rf "${DIST:?}/romfs/cache"
 cp switch/icon.jpg "$DIST/icon.jpg"
 # CMake project and the SwitchGDX native backend
 cp -r switch/res/. "$DIST/"

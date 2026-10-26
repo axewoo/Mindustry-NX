@@ -1,7 +1,7 @@
-From 6af69bf2460e45f63065653385abea270c5c1b05 Mon Sep 17 00:00:00 2001
+From ca015de3cbad3c9acfcb9f64554eb4aac46b4e70 Mon Sep 17 00:00:00 2001
 From: Justin Marentette <justinmarentette11@gmail.com>
 Date: Tue, 19 Nov 2024 20:39:06 -0500
-Subject: [PATCH 1/5] Initial SwitchGDX port
+Subject: [PATCH 1/6] Initial SwitchGDX port
 
 ---
  arc-core/src/arc/util/Http.java               | 146 +++---

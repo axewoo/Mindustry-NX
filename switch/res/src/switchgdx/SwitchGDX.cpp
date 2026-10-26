@@ -458,9 +458,6 @@ static void remapPadAxes(float *axes, u32 style) {
 jbool SM_arc_backend_switchgdx_SwitchApplication_update_R_boolean(jcontext ctx) {
 #ifdef __SWITCH__
     padUpdate(&combinedPad);
-    u64 kDown = padGetButtonsDown(&combinedPad);
-    if (kDown & HidNpadButton_Plus)
-        return false;
 
     for (int i = 0; i < 8; i++)
         padUpdate(&pads[i]);

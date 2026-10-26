@@ -38,6 +38,8 @@ public class SwitchControls implements ApplicationListener{
     float cursorX = -1, cursorY = -1, idle = hideTime, scrollRepeat, cursorHeld;
     int lastButtons;
     boolean visible;
+    /** Whether the cursor drives pointer 0. Touching the screen hands the pointer back to the finger until the cursor is used again. */
+    boolean pointerActive;
 
     @Override
     public void update(){
@@ -56,6 +58,7 @@ public class SwitchControls implements ApplicationListener{
         //a finger on the screen takes over: hide the cursor until the controller is used again
         if(in.isScreenTouched()){
             visible = false;
+            pointerActive = false;
             idle = hideTime;
             return;
         }
@@ -78,7 +81,8 @@ public class SwitchControls implements ApplicationListener{
         cursorY = Mathf.clamp(cursorY, 0, h - 1);
         active |= rx != 0 || ry != 0;
 
-        in.injectPointer((int)cursorX, (int)cursorY, (buttons & btnA) != 0);
+        pointerActive |= rx != 0 || ry != 0 || (pressed & (btnA | btnLeft | btnRight | btnR3)) != 0;
+        if(pointerActive) in.injectPointer((int)cursorX, (int)cursorY, (buttons & btnA) != 0);
 
         //d-pad up / down scrolls whatever is under the cursor (and zooms in game), repeating while held
         int scroll = (buttons & btnUp) != 0 ? -1 : (buttons & btnDown) != 0 ? 1 : 0;
@@ -133,7 +137,7 @@ public class SwitchControls implements ApplicationListener{
             visible = false;
         }
 
-        if(visible) draw();
+        if(visible && pointerActive) draw();
     }
 
     /** Cancels block placement or selected plans in game. Returns whether there was something to cancel. */

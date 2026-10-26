@@ -1,0 +1,55 @@
+From a4b1ccd44f6a6f196bbc89bdf0609b1dd7cdfcd7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 21:49:17 +0000
+Subject: [PATCH 9/9] Switch: log touch down/up, gate asset timing on the
+ Switch application
+
+---
+ arc-core/src/arc/assets/AssetManager.java                      | 2 +-
+ .../src/arc/backend/switchgdx/SwitchInput.java                 | 3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arc-core/src/arc/assets/AssetManager.java b/arc-core/src/arc/assets/AssetManager.java
+index 9627c2b1..dc46f0ba 100644
+--- a/arc-core/src/arc/assets/AssetManager.java
++++ b/arc-core/src/arc/assets/AssetManager.java
+@@ -636,7 +636,7 @@ public class AssetManager implements Disposable{
+             tasks.pop();
+ 
+             //load times are only logged on Switch, where loading is slow enough to need profiling
+-            if(OS.isSwitchGdx) Log.debug("[Assets] @ (@) took @ms", task.assetDesc.fileName, task.assetDesc.type.getSimpleName(), (Time.nanos() - task.startTime) / 1000000);
++            if(Core.app != null && Core.app.isSwitchGdx()) Log.debug("[Assets] @ (@) took @ms", task.assetDesc.fileName, task.assetDesc.type.getSimpleName(), (Time.nanos() - task.startTime) / 1000000);
+ 
+             if(task.cancel) return true;
+ 
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+index 73aadb2e..0a757a11 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+@@ -3,6 +3,7 @@ package arc.backend.switchgdx;
+ import arc.Input;
+ import arc.input.InputProcessor;
+ import arc.input.KeyCode;
++import arc.util.Log;
+ 
+ public class SwitchInput extends Input {
+ 
+@@ -63,6 +64,7 @@ public class SwitchInput extends Input {
+                         touchY[j] = touchData[i * 3 + 2];
+                         touched[j] = true;
+                         rawTouchIds[j] = rawIndex;
++                        Log.debug("[Touch] down @ at @, @ (@ms)", j, touchData[i * 3 + 1], touchData[i * 3 + 2], currentEventTimeStamp / 1000000);
+                         inputMultiplexer.touchDown(touchData[i * 3 + 1], touchData[i * 3 + 2], j, KeyCode.mouseLeft);
+                         break;
+                     }
+@@ -98,6 +100,7 @@ public class SwitchInput extends Input {
+                         deltaY[j] = 0;
+                         touched[j] = false;
+                         rawTouchIds[j] = -1;
++                        Log.debug("[Touch] up @ at @, @ (@ms)", j, previousTouchData[i * 3 + 1], previousTouchData[i * 3 + 2], currentEventTimeStamp / 1000000);
+                         inputMultiplexer.touchUp(previousTouchData[i * 3 + 1], previousTouchData[i * 3 + 2], j, KeyCode.mouseLeft);
+                         break;
+                     }
+-- 
+2.43.0
+

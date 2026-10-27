@@ -137,6 +137,29 @@ if s.count(old) != 1:
 open(p, "w").write(s.replace(old, new, 1))
 PY
 
+# libnx starts every pthread on the process's default core, so the GC, asset loading, physics and
+# executor threads all share core 0 with the game loop. Spread Java threads over cores 1 and 2.
+python3 - "$DIST/src/Clearwing.cpp" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "void attachThread(jcontext ctx) {\n    threadContext = ctx;\n"
+new = ("#ifdef __SWITCH__\n"
+       "extern \"C\" uint32_t svcSetThreadCoreMask(uint32_t handle, int32_t core_id, uint32_t affinity_mask);\n"
+       "static const std::thread::id cwMainThread = std::this_thread::get_id();\n"
+       "static std::atomic_int cwNextCore;\n"
+       "#endif\n\n" + old +
+       "#ifdef __SWITCH__\n"
+       "    if (std::this_thread::get_id() != cwMainThread) {\n"
+       "        int core = 1 + cwNextCore++ % 2;\n"
+       "        svcSetThreadCoreMask(0xFFFF8000, core, 1u << core);\n"
+       "    }\n"
+       "#endif\n")
+if s.count(old) != 1:
+    sys.exit("Clearwing.cpp: attachThread pattern not found")
+open(p, "w").write(s.replace(old, new, 1))
+PY
+
 # Newer devkitPro freetype pulls in harfbuzz (and friends): take the static
 # link line from pkg-config, and group the libs so link order doesn't matter.
 PKGCONF="$DEVKITPRO/portlibs/switch/bin/aarch64-none-elf-pkg-config"

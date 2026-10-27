@@ -7,6 +7,7 @@ import arc.graphics.g2d.*;
 import arc.input.*;
 import arc.math.*;
 import arc.util.*;
+import arc.input.KeyBind.*;
 import mindustry.core.*;
 import mindustry.core.GameState.*;
 import mindustry.graphics.*;
@@ -15,14 +16,15 @@ import mindustry.input.*;
 import static mindustry.Vars.*;
 
 /**
- * Joy-Con / Pro Controller support on top of Mindustry's touch controls.
- * The right stick moves an on-screen cursor that acts as a finger: A taps, holding A long-presses
- * (shoot / line placement) and dragging with A held drags. The left stick moves the camera,
- * which the player's unit follows, as when panning with a finger.
+ * Joy-Con / Pro Controller support. Using the controller switches the game to Mindustry's desktop controls, with the
+ * right stick moving an on-screen mouse cursor; touching the game world switches back to the touch controls.
  *
- * A tap / hold / drag, B back or cancel, X break mode, Y command mode,
- * L / R rotate block, ZL / ZR zoom, d-pad up / down scroll, d-pad left / right nudge the cursor,
- * + pause menu, - pause, R3 recenter the cursor.
+ * In game: left stick moves the unit (or the camera when dead), right stick moves the cursor, A is the left mouse
+ * button (place, select, mine, hold to shoot, drag to place lines), B the right mouse button (cancel, hold and drag to
+ * break, order units in command mode), X picks the block under the cursor, Y toggles command mode, L / R rotate,
+ * ZL / ZR zoom, d-pad left / right choose a block, d-pad up / down change the category, L3 boosts, R3 respawns at
+ * the core, + opens the menu and - pauses.
+ * In menus: A clicks, B goes back, d-pad up / down scroll, d-pad left / right nudge the cursor, R3 recenters it.
  */
 public class SwitchControls implements ApplicationListener{
     static final int
@@ -30,9 +32,9 @@ public class SwitchControls implements ApplicationListener{
     btnL = 1 << 6, btnR = 1 << 7, btnZL = 1 << 8, btnZR = 1 << 9, btnPlus = 1 << 10, btnMinus = 1 << 11,
     btnLeft = 1 << 12, btnUp = 1 << 13, btnRight = 1 << 14, btnDown = 1 << 15;
 
-    static final float deadzone = 0.15f, cameraSpeed = 14f, zoomSpeed = 0.06f;
+    static final float deadzone = 0.15f, zoomSpeed = 0.06f;
     /** Cursor speed in pixels per frame at 1280 wide: it starts slow for precision and speeds up while the stick is held. */
-    static final float cursorMinSpeed = 3.5f, cursorMaxSpeed = 10f, cursorRampTime = 40f;
+    static final float cursorMinSpeed = 3.5f, cursorMaxSpeed = 12f, cursorRampTime = 40f;
     /** Seconds without cursor input before the cursor hides. */
     static final float hideTime = 6f;
 
@@ -45,7 +47,23 @@ public class SwitchControls implements ApplicationListener{
     int lastButtons;
     boolean visible;
     /** Whether the cursor drives pointer 0. Touching the screen hands the pointer back to the finger until the cursor is used again. */
-    boolean pointerActive;
+    boolean pointerActive, screenTouched;
+
+    public SwitchControls(){
+        //desktop controls read these binds; the sticks are read through SwitchInput.axis
+        Binding.moveX.value = new Axis(KeyCode.controllerLStickXAxis);
+        Binding.moveY.value = new Axis(KeyCode.controllerLStickYAxis);
+        Binding.boost.value = new Axis(KeyCode.controllerLStick);
+        Binding.respawn.value = new Axis(KeyCode.controllerRStick);
+        Binding.pick.value = new Axis(KeyCode.controllerX);
+        Binding.commandMode.value = new Axis(KeyCode.controllerY);
+        Binding.rotate.value = new Axis(KeyCode.controllerRBumper, KeyCode.controllerLBumper);
+        Binding.blockSelectLeft.value = new Axis(KeyCode.controllerdPadLeft);
+        Binding.blockSelectRight.value = new Axis(KeyCode.controllerdPadRight);
+        Binding.categoryPrev.value = new Axis(KeyCode.controllerdPadUp);
+        Binding.categoryNext.value = new Axis(KeyCode.controllerdPadDown);
+        Core.settings.put("commandmodehold", false);
+    }
 
     void logPerf(){
         float frameMs = Core.graphics.getDeltaTime() * 1000f;
@@ -115,40 +133,57 @@ public class SwitchControls implements ApplicationListener{
         }
 
         int buttons = in.getControllerButtons();
-        int pressed = buttons & ~lastButtons, released = lastButtons & ~buttons;
+        int pressed = buttons & ~lastButtons;
         lastButtons = buttons;
 
-        //a finger on the screen takes over: hide the cursor until the controller is used again
-        if(in.isScreenTouched()){
+        //a finger on the screen takes over: hide the cursor until the controller is used again,
+        //and go back to the touch controls when the finger lands on the game world rather than on the UI
+        boolean touching = in.isScreenTouched();
+        if(touching && !screenTouched && state.isGame() && !Core.scene.hasMouse() && !(control.input instanceof MobileInput)){
+            control.setInput(new MobileInput());
+        }
+        screenTouched = touching;
+        if(touching){
             visible = false;
             pointerActive = false;
             idle = hideTime;
             return;
         }
 
-        boolean active = buttons != 0;
-
-        //cursor: right stick (squared for precision, faster the longer it is held), d-pad left / right nudges
         float rx = stick(in.getControllerAxis(2)), ry = -stick(in.getControllerAxis(3));
+        boolean sticks = rx != 0 || ry != 0 || stick(in.getControllerAxis(0)) != 0 || stick(in.getControllerAxis(1)) != 0;
+        boolean active = buttons != 0 || sticks;
+
+        //any controller input switches to the desktop controls
+        if((pressed != 0 || sticks) && !(control.input instanceof DesktopInput)){
+            control.setInput(new DesktopInput());
+        }
+
+        boolean inGame = state.isGame() && !Core.scene.hasDialog();
+
+        //cursor: right stick (squared for precision, faster the longer it is held)
         cursorHeld = rx != 0 || ry != 0 ? Math.min(cursorHeld + Time.delta, cursorRampTime) : 0f;
         float step = Mathf.lerp(cursorMinSpeed, cursorMaxSpeed, cursorHeld / cursorRampTime) * w / 1280f * Time.delta;
         cursorX += rx * Math.abs(rx) * step;
         cursorY += ry * Math.abs(ry) * step;
-        if((pressed & btnLeft) != 0) cursorX -= 4f * w / 1280f;
-        if((pressed & btnRight) != 0) cursorX += 4f * w / 1280f;
-        if((pressed & btnR3) != 0){
-            cursorX = w / 2f;
-            cursorY = h / 2f;
+        if(!inGame){
+            if((pressed & btnLeft) != 0) cursorX -= 4f * w / 1280f;
+            if((pressed & btnRight) != 0) cursorX += 4f * w / 1280f;
+            if((pressed & btnR3) != 0){
+                cursorX = w / 2f;
+                cursorY = h / 2f;
+            }
         }
         cursorX = Mathf.clamp(cursorX, 0, w - 1);
         cursorY = Mathf.clamp(cursorY, 0, h - 1);
-        active |= rx != 0 || ry != 0;
 
-        pointerActive |= rx != 0 || ry != 0 || (pressed & (btnA | btnLeft | btnRight | btnR3)) != 0;
-        if(pointerActive) in.injectPointer((int)cursorX, (int)cursorY, (buttons & btnA) != 0);
+        pointerActive |= active;
+        //B is the right mouse button in game, and goes back everywhere else
+        if(pointerActive) in.injectPointer((int)cursorX, (int)cursorY, (buttons & btnA) != 0, inGame && (buttons & btnB) != 0);
+        if((pressed & btnB) != 0 && !inGame) tap(in, KeyCode.back);
 
-        //d-pad up / down scrolls whatever is under the cursor (and zooms in game), repeating while held
-        int scroll = (buttons & btnUp) != 0 ? -1 : (buttons & btnDown) != 0 ? 1 : 0;
+        //d-pad up / down scrolls whatever is under the cursor outside the game, repeating while held
+        int scroll = inGame ? 0 : (buttons & btnUp) != 0 ? -1 : (buttons & btnDown) != 0 ? 1 : 0;
         if(scroll == 0){
             scrollRepeat = 0;
         }else if((scrollRepeat -= Time.delta) <= 0){
@@ -156,65 +191,23 @@ public class SwitchControls implements ApplicationListener{
             Core.scene.scrolled(0, scroll);
         }
 
-        if((pressed & btnPlus) != 0) tap(in, KeyCode.back);
+        if((pressed & btnPlus) != 0) tap(in, control.input instanceof DesktopInput ? Binding.menu.value.key : KeyCode.back);
         if((pressed & btnMinus) != 0) tap(in, Binding.pause.value.key);
 
-        if((pressed & btnB) != 0){
-            if(!back()) tap(in, KeyCode.back);
-        }
-
-        if(state.isGame() && !Core.scene.hasDialog() && control.input instanceof MobileInput input){
-            //camera: left stick; the player's unit follows the camera on touch controls
-            float lx = stick(in.getControllerAxis(0)), ly = -stick(in.getControllerAxis(1));
-            if(lx != 0 || ly != 0){
-                float speed = cameraSpeed * Core.camera.width / w * Time.delta;
-                Core.camera.position.add(lx * speed, ly * speed);
-                Core.camera.position.clamp(-Core.camera.width / 4f, -Core.camera.height / 4f,
-                    world.unitWidth() + Core.camera.width / 4f, world.unitHeight() + Core.camera.height / 4f);
-            }
-
+        if(inGame){
             if((buttons & btnZR) != 0) renderer.scaleCamera(zoomSpeed * Time.delta);
             if((buttons & btnZL) != 0) renderer.scaleCamera(-zoomSpeed * Time.delta);
-
-            if((pressed & btnL) != 0) input.rotation = Mathf.mod(input.rotation + 1, 4);
-            if((pressed & btnR) != 0) input.rotation = Mathf.mod(input.rotation - 1, 4);
-
-            if((pressed & btnX) != 0){
-                input.mode = input.mode == PlaceMode.breaking ? input.block == null ? PlaceMode.none : PlaceMode.placing : PlaceMode.breaking;
-            }
-
-            if((pressed & btnY) != 0 && !input.locked()){
-                input.commandMode = !input.commandMode;
-                if(input.commandMode){
-                    input.block = null;
-                    input.rebuildMode = false;
-                    input.mode = PlaceMode.none;
-                }
-            }
         }
 
         if(active){
             idle = 0;
             visible = true;
-        }else if((idle += Time.delta / 60f) > hideTime){
+        }else if((idle += Time.delta / 60f) > hideTime && !(state.isGame() && control.input instanceof DesktopInput)){
+            //the cursor is also the aim in game, so it only hides in menus
             visible = false;
         }
 
         if(visible && pointerActive) draw();
-    }
-
-    /** Cancels block placement or selected plans in game. Returns whether there was something to cancel. */
-    boolean back(){
-        if(!state.isGame() || Core.scene.hasDialog() || !(control.input instanceof MobileInput input)) return false;
-
-        if(input.block != null || !input.selectPlans.isEmpty() || input.mode != PlaceMode.none || input.commandMode){
-            input.block = null;
-            input.selectPlans.clear();
-            input.mode = PlaceMode.none;
-            input.commandMode = false;
-            return true;
-        }
-        return false;
     }
 
     static void tap(SwitchInput in, KeyCode key){

@@ -1,7 +1,7 @@
 From 859c6307e4601d042dee22454e93da4ae89334fe Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 26 Oct 2026 17:16:07 +0000
-Subject: [PATCH 07/11] Keep desktop behavior: SimpleExecutorService only on
+Subject: [PATCH 07/12] Keep desktop behavior: SimpleExecutorService only on
  Switch, upstream Http (the Switch build replaces it)
 
 ---

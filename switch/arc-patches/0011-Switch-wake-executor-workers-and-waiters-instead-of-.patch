@@ -1,7 +1,7 @@
 From ddb98ae5a68b60185fac341572b286c5ee374d9e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 27 Oct 2026 17:15:37 +0000
-Subject: [PATCH 11/11] Switch: wake executor workers and waiters instead of
+Subject: [PATCH 11/12] Switch: wake executor workers and waiters instead of
  polling
 
 SimpleExecutorService workers slept 10 ms between polls and Future.get slept

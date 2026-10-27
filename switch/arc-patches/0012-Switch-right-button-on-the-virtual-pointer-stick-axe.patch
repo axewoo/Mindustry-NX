@@ -1,0 +1,127 @@
+From b18992ac845626d72110395d2840bc4c02f1ecfa Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 27 Oct 2026 19:36:23 +0000
+Subject: [PATCH 12/12] Switch: right button on the virtual pointer, stick axes
+ for key binds
+
+---
+ .../arc/backend/switchgdx/SwitchInput.java    | 77 +++++++++++++++----
+ 1 file changed, 61 insertions(+), 16 deletions(-)
+
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+index 0a757a11..24c48989 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+@@ -2,6 +2,7 @@ package arc.backend.switchgdx;
+ 
+ import arc.Input;
+ import arc.input.InputProcessor;
++import arc.input.KeyBind;
+ import arc.input.KeyCode;
+ import arc.util.Log;
+ 
+@@ -29,7 +30,8 @@ public class SwitchInput extends Input {
+     private final boolean[] touched = new boolean[MAX_TOUCHES];
+     private boolean wasJustTouched;
+     private int prevButtons;
+-    private boolean virtualDown;
++    private boolean virtualDown, virtualRight;
++    private static final float DEADZONE = 0.15f;
+     private final float[] axes = new float[4];
+ 
+     public SwitchInput () {
+@@ -150,11 +152,16 @@ public class SwitchInput extends Input {
+ 
+     /**
+      * Moves the virtual pointer (pointer 0, as a mouse) to x, y in input coordinates (y up), pressing or releasing
+-     * it as needed. Ignored while a finger is on the screen.
++     * the left button as needed. Ignored while a finger is on the screen.
+      */
+     public void injectPointer(int x, int y, boolean down) {
++        injectPointer(x, y, down, false);
++    }
++
++    /** Like {@link #injectPointer(int, int, boolean)}, with the right mouse button too. */
++    public void injectPointer(int x, int y, boolean left, boolean right) {
+         if (isScreenTouched()) {
+-            virtualDown = false;
++            virtualDown = virtualRight = false;
+             return;
+         }
+         boolean moved = x != touchX[0] || y != touchY[0];
+@@ -162,21 +169,59 @@ public class SwitchInput extends Input {
+         deltaY[0] = y - touchY[0];
+         touchX[0] = x;
+         touchY[0] = y;
+-        if (down && !virtualDown) {
+-            virtualDown = true;
+-            touched[0] = true;
+-            wasJustTouched = true;
+-            inputMultiplexer.touchDown(x, y, 0, KeyCode.mouseLeft);
+-        } else if (!down && virtualDown) {
+-            virtualDown = false;
+-            touched[0] = false;
+-            inputMultiplexer.touchUp(x, y, 0, KeyCode.mouseLeft);
+-        } else if (moved) {
+-            if (virtualDown)
+-                inputMultiplexer.touchDragged(x, y, 0);
++        boolean changed = false;
++        if (moved && (virtualDown || virtualRight))
++            inputMultiplexer.touchDragged(x, y, 0);
++        else if (moved)
++            inputMultiplexer.mouseMoved(x, y);
++        if (left != virtualDown) {
++            virtualDown = left;
++            changed = true;
++            if (left)
++                inputMultiplexer.touchDown(x, y, 0, KeyCode.mouseLeft);
++            else
++                inputMultiplexer.touchUp(x, y, 0, KeyCode.mouseLeft);
++        }
++        if (right != virtualRight) {
++            virtualRight = right;
++            changed = true;
++            if (right)
++                inputMultiplexer.touchDown(x, y, 0, KeyCode.mouseRight);
+             else
+-                inputMultiplexer.mouseMoved(x, y);
++                inputMultiplexer.touchUp(x, y, 0, KeyCode.mouseRight);
++        }
++        if (changed && (left || right) && !touched[0])
++            wasJustTouched = true;
++        touched[0] = left || right;
++    }
++
++    /** Stick value for a controller axis key with a deadzone applied (y up), or NaN for other keys. */
++    private float stickAxis(KeyCode key) {
++        int index;
++        if (key == KeyCode.controllerLStickXAxis) index = 0;
++        else if (key == KeyCode.controllerLStickYAxis) index = 1;
++        else if (key == KeyCode.controllerRStickXAxis) index = 2;
++        else if (key == KeyCode.controllerRStickYAxis) index = 3;
++        else return Float.NaN;
++        float value = axes[index];
++        value = Math.abs(value) < DEADZONE ? 0f : (value - Math.signum(value) * DEADZONE) / (1f - DEADZONE);
++        return index % 2 == 1 ? -value : value;
++    }
++
++    @Override
++    public float axis(KeyCode key) {
++        float value = stickAxis(key);
++        return Float.isNaN(value) ? super.axis(key) : value;
++    }
++
++    @Override
++    public float axis(KeyBind key) {
++        if (key.value.key != null) {
++            float value = stickAxis(key.value.key);
++            if (!Float.isNaN(value))
++                return value;
+         }
++        return super.axis(key);
+     }
+ 
+     void postUpdate(){
+-- 
+2.43.0
+

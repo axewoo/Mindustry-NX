@@ -1,7 +1,7 @@
 From 791db503129026aa93d4cf0362ba851f7876c321 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 27 Oct 2026 11:56:08 +0000
-Subject: [PATCH 10/11] Switch: time the phases of the main loop
+Subject: [PATCH 10/12] Switch: time the phases of the main loop
 
 ---
  .../src/arc/backend/switchgdx/SwitchApplication.java | 12 ++++++++++++

@@ -272,6 +272,11 @@ void SM_arc_backend_switchgdx_SwitchApplication_dispose0(jcontext ctx) {
     SDL_Quit();
 
     romfsExit();
+
+    // Threads still alive at exit (GC, executors, audio) keep their stacks and transfer memory
+    // mapped inside hbloader's heap, so the next NRO launched from hbmenu faults on that memory.
+    // End the whole process instead of returning to hbloader so the system reclaims everything.
+    envSetExitFuncPtr((LoaderReturnFn) svcExitProcess);
 #endif
 
     curl_global_cleanup();

@@ -7,6 +7,7 @@ import arc.graphics.g2d.*;
 import arc.input.*;
 import arc.math.*;
 import arc.util.*;
+import mindustry.core.*;
 import mindustry.core.GameState.*;
 import mindustry.graphics.*;
 import mindustry.input.*;
@@ -49,6 +50,7 @@ public class SwitchControls implements ApplicationListener{
         //long frames, to match against the [GC] lines in Mindustry.log
         if(frameMs > 100f) Log.debug("[Frame] @ms at @", (int)frameMs, Time.millis());
         if(!state.isGame()) return;
+        if(frameMs > 60f) Log.debug("[Slow] @", perfBreakdown(true));
 
         perfFrames++;
         perfWorst = Math.max(perfWorst, frameMs);
@@ -57,10 +59,20 @@ public class SwitchControls implements ApplicationListener{
         lastCamY = Core.camera.position.y;
         perfTime += Core.graphics.getDeltaTime();
         if(perfTime >= 1f){
-            Log.debug("[Perf] @ fps, worst @ms, camera moving @/@ frames, zoom @ at @", perfFrames, (int)perfWorst, perfMoving, perfFrames, Strings.fixed(renderer.getScale(), 2), Time.millis());
+            Log.debug("[Perf] @ fps, worst @ms, camera moving @/@ frames, zoom @ at @ | @", perfFrames, (int)perfWorst, perfMoving, perfFrames, Strings.fixed(renderer.getScale(), 2), Time.millis(), perfBreakdown(false));
             perfTime = perfWorst = 0f;
             perfFrames = perfMoving = 0;
         }
+    }
+
+    /** Time spent in each of Mindustry's own counters, in ms: the latest frame, or the mean of the last 120 frames. */
+    static String perfBreakdown(boolean latest){
+        StringBuilder out = new StringBuilder();
+        for(PerfCounter c : PerfCounter.displayedCounters){
+            float ms = latest ? c.latestValueNs() / (float)Time.nanosPerMilli : c.rawValueMs();
+            out.append(c.name()).append(' ').append(Strings.fixed(ms, 1)).append(' ');
+        }
+        return out.toString();
     }
 
     @Override

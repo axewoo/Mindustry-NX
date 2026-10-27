@@ -1,6 +1,8 @@
 package com.thelogicmaster.switchgdx;
 
+import arc.ApplicationListener;
 import arc.Core;
+import arc.assets.Loadable;
 import arc.Events;
 import arc.backend.switchgdx.SwitchApplication;
 import arc.files.Fi;
@@ -8,6 +10,7 @@ import arc.util.Log;
 import mindustry.ClientLauncher;
 import mindustry.Vars;
 import mindustry.game.EventType;
+import mindustry.nx.ModuleTimer;
 import mindustry.nx.SwitchControls;
 
 public class SwitchLauncher extends ClientLauncher {
@@ -15,6 +18,14 @@ public class SwitchLauncher extends ClientLauncher {
 	@Override
 	public ClassLoader loadJar(Fi jar, ClassLoader parent) throws Exception {
 		return parent;
+	}
+
+	@Override
+	public void add(ApplicationListener module) {
+		// time each module's update for the [Perf] log; keep autoloading the module itself
+		super.add(new ModuleTimer(module));
+		if (module instanceof Loadable)
+			Core.assets.load((Loadable) module);
 	}
 
 	@Override

@@ -77,6 +77,13 @@ public class SwitchControls implements ApplicationListener{
                 out.append(names[i]).append(' ').append(ms(perf[i] / perfFrames)).append('/').append(ms(perfMax[i])).append(' ');
                 perf[i] = perfMax[i] = 0;
             }
+            for(PerfCounter c : new PerfCounter[]{PerfCounter.entityUpdate, PerfCounter.unitPhysicsAsync, PerfCounter.unitPhysicsWait, PerfCounter.ui}){
+                out.append(c.name()).append(' ').append(Strings.fixed(c.rawValueMs(), 1)).append(' ');
+            }
+            for(ModuleTimer m : ModuleTimer.all){
+                out.append(m.name).append(' ').append(ms(m.total / perfFrames)).append('/').append(ms(m.max)).append(' ');
+                m.total = m.max = 0;
+            }
             Log.debug("[Perf] @ fps, worst @ms, moving @/@, zoom @, voices @ at @ | avg/max ms: @", perfFrames, (int)perfWorst, perfMoving, perfFrames,
                 Strings.fixed(renderer.getScale(), 2), Core.audio.countTotalPlaying(), Time.millis(), out);
             perfTime = perfWorst = 0f;

@@ -36,18 +36,38 @@ public class SwitchControls implements ApplicationListener{
     static final float hideTime = 6f;
 
     float cursorX = -1, cursorY = -1, idle = hideTime, scrollRepeat, cursorHeld;
+    /** Per-second frame stats while in game, logged to profile stutters. */
+    float perfTime, perfWorst, lastCamX, lastCamY;
+    int perfFrames, perfMoving;
     int lastButtons;
     boolean visible;
     /** Whether the cursor drives pointer 0. Touching the screen hands the pointer back to the finger until the cursor is used again. */
     boolean pointerActive;
 
+    void logPerf(){
+        float frameMs = Core.graphics.getDeltaTime() * 1000f;
+        //long frames, to match against the [GC] lines in Mindustry.log
+        if(frameMs > 100f) Log.debug("[Frame] @ms at @", (int)frameMs, Time.millis());
+        if(!state.isGame()) return;
+
+        perfFrames++;
+        perfWorst = Math.max(perfWorst, frameMs);
+        if(Core.camera.position.x != lastCamX || Core.camera.position.y != lastCamY) perfMoving++;
+        lastCamX = Core.camera.position.x;
+        lastCamY = Core.camera.position.y;
+        perfTime += Core.graphics.getDeltaTime();
+        if(perfTime >= 1f){
+            Log.debug("[Perf] @ fps, worst @ms, camera moving @/@ frames, zoom @ at @", perfFrames, (int)perfWorst, perfMoving, perfFrames, Strings.fixed(renderer.getScale(), 2), Time.millis());
+            perfTime = perfWorst = 0f;
+            perfFrames = perfMoving = 0;
+        }
+    }
+
     @Override
     public void update(){
         if(!(Core.input instanceof SwitchInput in) || state == null || Core.scene == null) return;
 
-        //frame spikes, to match against the [GC] lines in Mindustry.log
-        float frameMs = Core.graphics.getDeltaTime() * 1000f;
-        if(frameMs > 25f) Log.debug("[Frame] @ms at @", (int)frameMs, Time.millis());
+        logPerf();
 
         float w = Core.graphics.getWidth(), h = Core.graphics.getHeight();
         if(cursorX < 0){

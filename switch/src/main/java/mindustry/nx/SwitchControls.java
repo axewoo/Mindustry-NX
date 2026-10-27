@@ -40,6 +40,8 @@ public class SwitchControls implements ApplicationListener{
     /** Per-second frame stats while in game, logged to profile stutters. */
     float perfTime, perfWorst, lastCamX, lastCamY;
     int perfFrames, perfMoving;
+    long lastUpdateNs, selfNs;
+    final long[] perf = new long[6], perfMax = new long[6];
     int lastButtons;
     boolean visible;
     /** Whether the cursor drives pointer 0. Touching the screen hands the pointer back to the finger until the cursor is used again. */
@@ -47,12 +49,20 @@ public class SwitchControls implements ApplicationListener{
 
     void logPerf(){
         float frameMs = Core.graphics.getDeltaTime() * 1000f;
-        //long frames, to match against the [GC] lines in Mindustry.log
-        if(frameMs > 100f) Log.debug("[Frame] @ms at @", (int)frameMs, Time.millis());
+        //very long frames, to match against the [GC] lines in Mindustry.log
+        if(frameMs > 250f) Log.debug("[Frame] @ms at @", (int)frameMs, Time.millis());
         if(!state.isGame()) return;
-        if(frameMs > 60f) Log.debug("[Slow] @| loop: native @ pre @ listeners @ runnables @ | voices @", perfBreakdown(true),
-            ms(SwitchApplication.lastNativeNs), ms(SwitchApplication.lastPreListenNs), ms(SwitchApplication.lastListenNs),
-            ms(SwitchApplication.lastRunnablesNs), Core.audio.countTotalPlaying());
+
+        //phases of the previous frame: the game's update, the buffer swap and polling, and the rest of the listeners (these controls)
+        long update = PerfCounter.update.latestValueNs();
+        perf[0] += update; perfMax[0] = Math.max(perfMax[0], update);
+        perf[1] += PerfCounter.render.latestValueNs(); perfMax[1] = Math.max(perfMax[1], PerfCounter.render.latestValueNs());
+        perf[2] += PerfCounter.other.latestValueNs(); perfMax[2] = Math.max(perfMax[2], PerfCounter.other.latestValueNs());
+        perf[3] += SwitchApplication.lastNativeNs; perfMax[3] = Math.max(perfMax[3], SwitchApplication.lastNativeNs);
+        long rest = Math.max(SwitchApplication.lastListenNs - lastUpdateNs, 0);
+        perf[4] += rest; perfMax[4] = Math.max(perfMax[4], rest);
+        perf[5] += selfNs; perfMax[5] = Math.max(perfMax[5], selfNs);
+        lastUpdateNs = update;
 
         perfFrames++;
         perfWorst = Math.max(perfWorst, frameMs);
@@ -61,7 +71,14 @@ public class SwitchControls implements ApplicationListener{
         lastCamY = Core.camera.position.y;
         perfTime += Core.graphics.getDeltaTime();
         if(perfTime >= 1f){
-            Log.debug("[Perf] @ fps, worst @ms, camera moving @/@ frames, zoom @ at @ | @", perfFrames, (int)perfWorst, perfMoving, perfFrames, Strings.fixed(renderer.getScale(), 2), Time.millis(), perfBreakdown(false));
+            StringBuilder out = new StringBuilder();
+            String[] names = {"update", "render", "other", "native", "rest", "controls"};
+            for(int i = 0; i < names.length; i++){
+                out.append(names[i]).append(' ').append(ms(perf[i] / perfFrames)).append('/').append(ms(perfMax[i])).append(' ');
+                perf[i] = perfMax[i] = 0;
+            }
+            Log.debug("[Perf] @ fps, worst @ms, moving @/@, zoom @, voices @ at @ | avg/max ms: @", perfFrames, (int)perfWorst, perfMoving, perfFrames,
+                Strings.fixed(renderer.getScale(), 2), Core.audio.countTotalPlaying(), Time.millis(), out);
             perfTime = perfWorst = 0f;
             perfFrames = perfMoving = 0;
         }
@@ -71,21 +88,18 @@ public class SwitchControls implements ApplicationListener{
         return Strings.fixed(nanos / (float)Time.nanosPerMilli, 1);
     }
 
-    /** Time spent in each of Mindustry's own counters, in ms: the latest frame, or the mean of the last 120 frames. */
-    static String perfBreakdown(boolean latest){
-        StringBuilder out = new StringBuilder();
-        for(PerfCounter c : PerfCounter.displayedCounters){
-            float ms = latest ? c.latestValueNs() / (float)Time.nanosPerMilli : c.rawValueMs();
-            out.append(c.name()).append(' ').append(Strings.fixed(ms, 1)).append(' ');
-        }
-        return out.toString();
-    }
 
     @Override
     public void update(){
         if(!(Core.input instanceof SwitchInput in) || state == null || Core.scene == null) return;
 
+        long start = Time.nanos();
         logPerf();
+        updateControls(in);
+        selfNs = Time.nanos() - start;
+    }
+
+    void updateControls(SwitchInput in){
 
         float w = Core.graphics.getWidth(), h = Core.graphics.getHeight();
         if(cursorX < 0){

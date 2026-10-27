@@ -50,7 +50,9 @@ public class SwitchControls implements ApplicationListener{
         //long frames, to match against the [GC] lines in Mindustry.log
         if(frameMs > 100f) Log.debug("[Frame] @ms at @", (int)frameMs, Time.millis());
         if(!state.isGame()) return;
-        if(frameMs > 60f) Log.debug("[Slow] @", perfBreakdown(true));
+        if(frameMs > 60f) Log.debug("[Slow] @| loop: native @ pre @ listeners @ runnables @ | voices @", perfBreakdown(true),
+            ms(SwitchApplication.lastNativeNs), ms(SwitchApplication.lastPreListenNs), ms(SwitchApplication.lastListenNs),
+            ms(SwitchApplication.lastRunnablesNs), Core.audio.countTotalPlaying());
 
         perfFrames++;
         perfWorst = Math.max(perfWorst, frameMs);
@@ -63,6 +65,10 @@ public class SwitchControls implements ApplicationListener{
             perfTime = perfWorst = 0f;
             perfFrames = perfMoving = 0;
         }
+    }
+
+    static String ms(long nanos){
+        return Strings.fixed(nanos / (float)Time.nanosPerMilli, 1);
     }
 
     /** Time spent in each of Mindustry's own counters, in ms: the latest frame, or the mean of the last 120 frames. */

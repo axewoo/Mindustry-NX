@@ -117,6 +117,26 @@ if old not in s:
 open(p, "w").write(s.replace(old, new, 1))
 PY
 
+# Log every stop-the-world collection that takes 4 ms or more to Mindustry.log, to profile stutters
+python3 - "$DIST/src/Clearwing.cpp" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "    lastCollectionHeapUsage = heapUsage;\n"
+new = ("    {\n"
+       "        auto gcEnd = std::chrono::system_clock::now();\n"
+       "        auto gcMs = std::chrono::duration_cast<std::chrono::milliseconds>(gcEnd - blockTime).count();\n"
+       "        if (gcMs >= 4)\n"
+       "            printf(\"[GC] %lld ms at %lld: block %lld ms, %d collected, %d live, %lld MB heap\\n\", (long long) gcMs,\n"
+       "                (long long) std::chrono::duration_cast<std::chrono::milliseconds>(gcEnd.time_since_epoch()).count(),\n"
+       "                (long long) std::chrono::duration_cast<std::chrono::milliseconds>(copyTime - blockTime).count(),\n"
+       "                (int) collectedObjects.size(), (int) objects->size(), (long long) (heapUsage / 1000000));\n"
+       "    }\n" + old)
+if s.count(old) != 1:
+    sys.exit("Clearwing.cpp: runGC pattern not found")
+open(p, "w").write(s.replace(old, new, 1))
+PY
+
 # Newer devkitPro freetype pulls in harfbuzz (and friends): take the static
 # link line from pkg-config, and group the libs so link order doesn't matter.
 PKGCONF="$DEVKITPRO/portlibs/switch/bin/aarch64-none-elf-pkg-config"

@@ -45,6 +45,10 @@ public class SwitchControls implements ApplicationListener{
     public void update(){
         if(!(Core.input instanceof SwitchInput in) || state == null || Core.scene == null) return;
 
+        //frame spikes, to match against the [GC] lines in Mindustry.log
+        float frameMs = Core.graphics.getDeltaTime() * 1000f;
+        if(frameMs > 25f) Log.debug("[Frame] @ms at @", (int)frameMs, Time.millis());
+
         float w = Core.graphics.getWidth(), h = Core.graphics.getHeight();
         if(cursorX < 0){
             cursorX = w / 2f;

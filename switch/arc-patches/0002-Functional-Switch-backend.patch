@@ -1,7 +1,7 @@
 From 74f5f3f34694535cb5c7f6a444e879c7601a4be5 Mon Sep 17 00:00:00 2001
 From: Justin Marentette <justinmarentette11@gmail.com>
 Date: Fri, 13 Dec 2024 22:20:00 -0500
-Subject: [PATCH 02/10] Functional Switch backend
+Subject: [PATCH 02/11] Functional Switch backend
 
 ---
  arc-core/src/arc/Application.java             |  8 +++-

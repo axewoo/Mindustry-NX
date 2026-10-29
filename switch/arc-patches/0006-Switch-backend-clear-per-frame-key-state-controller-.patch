@@ -1,0 +1,138 @@
+From 7641dd5f95d9b579e08fb63655b67a4c406485f3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 17:05:21 +0000
+Subject: [PATCH 06/12] Switch backend: clear per-frame key state, controller
+ key codes, virtual pointer API for controller support
+
+---
+ .../backend/switchgdx/SwitchApplication.java  |  1 +
+ .../arc/backend/switchgdx/SwitchInput.java    | 77 ++++++++++++++++---
+ 2 files changed, 69 insertions(+), 9 deletions(-)
+
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+index 3af8579b..bc9c4636 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+@@ -54,6 +54,7 @@ public class SwitchApplication implements Application {
+                 defaultUpdate();
+                 listen(ApplicationListener::update);
+                 runnables.run();
++                input.postUpdate();
+             }
+         } catch (Throwable t) {
+             System.out.println("Uncaught Exception:");
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+index c9419372..2b6b849c 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+@@ -8,12 +8,13 @@ public class SwitchInput extends Input {
+ 
+     private static final int MAX_TOUCHES = 16;
+     
++    /** Key events sent for the low 16 HidNpadButton bits: A B X Y L3 R3 L R ZL ZR Plus Minus, then the d-pad (left up right down). */
+     private static final KeyCode[] SWITCH_KEYS = {
+         KeyCode.controllerA, KeyCode.controllerB, KeyCode.controllerX, KeyCode.controllerY,
+-        KeyCode.buttonThumbL, KeyCode.buttonThumbR,
+-        KeyCode.buttonL1, KeyCode.buttonR1, KeyCode.buttonL2, KeyCode.buttonR2,
+-        KeyCode.escape, KeyCode.buttonStart,
+-        KeyCode.a, KeyCode.w, KeyCode.d, KeyCode.s, 
++        KeyCode.controllerLStick, KeyCode.controllerRStick,
++        KeyCode.controllerLBumper, KeyCode.controllerRBumper, KeyCode.buttonL2, KeyCode.buttonR2,
++        KeyCode.controllerStart, KeyCode.controllerBack,
++        KeyCode.controllerdPadLeft, KeyCode.controllerdPadUp, KeyCode.controllerdPadRight, KeyCode.controllerdPadDown,
+     };
+ 
+     private long currentEventTimeStamp;
+@@ -27,6 +28,7 @@ public class SwitchInput extends Input {
+     private final boolean[] touched = new boolean[MAX_TOUCHES];
+     private boolean wasJustTouched;
+     private int prevButtons;
++    private boolean virtualDown;
+     private final float[] axes = new float[4];
+ 
+     public SwitchInput () {
+@@ -104,12 +106,8 @@ public class SwitchInput extends Input {
+ 
+         System.arraycopy(touchData, 0, previousTouchData, 0, MAX_TOUCHES * 3);
+ 
+-        int buttons = getButtons(-1);
++        int buttons = getButtons(-1) & 0xFFFF;
+         getAxes(-1, axes);
+-        if (Math.abs(axes[0]) > 0.1f)
+-            buttons |= axes[0] < 0 ? 1 << 12 : 1 << 14;
+-        if (Math.abs(axes[1]) > 0.1f)
+-            buttons |= axes[1] < 0 ? 1 << 13 : 1 << 15;
+         for (int i = 0; i < 16; i++) {
+             int bit = 1 << i;
+             if ((buttons & bit) != 0 && (prevButtons & bit) == 0)
+@@ -121,6 +119,67 @@ public class SwitchInput extends Input {
+     }
+ 
+     
++    /** Held controller buttons (HidNpadButton bits: A=0, B=1, X=2, Y=3, L3=4, R3=5, L=6, R=7, ZL=8, ZR=9, Plus=10, Minus=11, d-pad 12-15). */
++    public int getControllerButtons() {
++        return prevButtons;
++    }
++
++    /** Stick positions from -1 to 1: left x, left y, right x, right y (y is up). */
++    public float getControllerAxis(int axis) {
++        return axes[axis];
++    }
++
++    /** Whether a finger is on the touch screen. */
++    public boolean isScreenTouched() {
++        for (int id : rawTouchIds)
++            if (id != -1)
++                return true;
++        return false;
++    }
++
++    /** Sends a key press or release as if it came from a keyboard. */
++    public void injectKey(KeyCode key, boolean down) {
++        if (down)
++            inputMultiplexer.keyDown(key);
++        else
++            inputMultiplexer.keyUp(key);
++    }
++
++    /**
++     * Moves the virtual pointer (pointer 0, as a mouse) to x, y in input coordinates (y up), pressing or releasing
++     * it as needed. Ignored while a finger is on the screen.
++     */
++    public void injectPointer(int x, int y, boolean down) {
++        if (isScreenTouched()) {
++            virtualDown = false;
++            return;
++        }
++        boolean moved = x != touchX[0] || y != touchY[0];
++        deltaX[0] = x - touchX[0];
++        deltaY[0] = y - touchY[0];
++        touchX[0] = x;
++        touchY[0] = y;
++        if (down && !virtualDown) {
++            virtualDown = true;
++            touched[0] = true;
++            wasJustTouched = true;
++            inputMultiplexer.touchDown(x, y, 0, KeyCode.mouseLeft);
++        } else if (!down && virtualDown) {
++            virtualDown = false;
++            touched[0] = false;
++            inputMultiplexer.touchUp(x, y, 0, KeyCode.mouseLeft);
++        } else if (moved) {
++            if (virtualDown)
++                inputMultiplexer.touchDragged(x, y, 0);
++            else
++                inputMultiplexer.mouseMoved(x, y);
++        }
++    }
++
++    void postUpdate(){
++        keyboard.postUpdate();
++    }
++
+     @Override
+     public int mouseX() {
+         return touchX[0];
+-- 
+2.43.0
+

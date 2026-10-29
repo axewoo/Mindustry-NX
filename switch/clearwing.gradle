@@ -1,0 +1,10 @@
+// Gradle init script for Switch builds (scripts/build-switch.sh passes it with --init-script).
+// It applies to the included Arc and rhino builds too.
+// The Clearwing transpiler only understands the invokedynamic forms that Java 8 emits
+// (lambdas and method references), so string concatenation must compile to StringBuilder
+// calls instead of StringConcatFactory.
+allprojects{
+    tasks.withType(JavaCompile).configureEach{
+        options.compilerArgs += ['-XDstringConcat=inline']
+    }
+}

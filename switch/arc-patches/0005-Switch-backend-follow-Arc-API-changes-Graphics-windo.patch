@@ -1,0 +1,79 @@
+From 81923d9f1629570b534233074ac194053efe8deb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 16:55:31 +0000
+Subject: [PATCH 05/12] Switch backend: follow Arc API changes (Graphics window
+ methods, InputDevice removal)
+
+---
+ .../arc/backend/switchgdx/SwitchApplication.java    |  1 -
+ .../src/arc/backend/switchgdx/SwitchGraphics.java   | 13 -------------
+ .../src/arc/backend/switchgdx/SwitchInput.java      |  6 ------
+ 3 files changed, 20 deletions(-)
+
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+index 979c565d..3af8579b 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+@@ -54,7 +54,6 @@ public class SwitchApplication implements Application {
+                 defaultUpdate();
+                 listen(ApplicationListener::update);
+                 runnables.run();
+-                input.processDevices();
+             }
+         } catch (Throwable t) {
+             System.out.println("Uncaught Exception:");
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java
+index ab0b8561..a58d57a1 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java
+@@ -129,23 +129,10 @@ public class SwitchGraphics extends Graphics {
+         return 1;
+     }
+ 
+-    @Override
+-    public boolean setWindowedMode(int width, int height) {
+-        return false;
+-    }
+-
+     @Override
+     public void setTitle(String title) {
+     }
+ 
+-    @Override
+-    public void setBorderless(boolean undecorated) {
+-    }
+-
+-    @Override
+-    public void setResizable(boolean resizable) {
+-    }
+-
+     @Override
+     public void setVSync(boolean vsync) {
+     }
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+index 9e321e0a..c9419372 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+@@ -1,7 +1,6 @@
+ package arc.backend.switchgdx;
+ 
+ import arc.Input;
+-import arc.input.InputDevice;
+ import arc.input.InputProcessor;
+ import arc.input.KeyCode;
+ 
+@@ -121,11 +120,6 @@ public class SwitchInput extends Input {
+         prevButtons = buttons;
+     }
+ 
+-    void processDevices(){
+-        for (InputDevice device : devices) {
+-            device.postUpdate();
+-        }
+-    }
+     
+     @Override
+     public int mouseX() {
+-- 
+2.43.0
+

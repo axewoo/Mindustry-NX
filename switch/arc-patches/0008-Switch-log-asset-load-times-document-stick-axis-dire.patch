@@ -1,0 +1,41 @@
+From 8f97e34a1d1b88dcfb225678cc9161de10283448 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 21:31:27 +0000
+Subject: [PATCH 08/12] Switch: log asset load times, document stick axis
+ direction
+
+---
+ arc-core/src/arc/assets/AssetManager.java                      | 3 +++
+ .../src/arc/backend/switchgdx/SwitchInput.java                 | 2 +-
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arc-core/src/arc/assets/AssetManager.java b/arc-core/src/arc/assets/AssetManager.java
+index be5fc09d..9627c2b1 100644
+--- a/arc-core/src/arc/assets/AssetManager.java
++++ b/arc-core/src/arc/assets/AssetManager.java
+@@ -635,6 +635,9 @@ public class AssetManager implements Disposable{
+             }
+             tasks.pop();
+ 
++            //load times are only logged on Switch, where loading is slow enough to need profiling
++            if(OS.isSwitchGdx) Log.debug("[Assets] @ (@) took @ms", task.assetDesc.fileName, task.assetDesc.type.getSimpleName(), (Time.nanos() - task.startTime) / 1000000);
++
+             if(task.cancel) return true;
+ 
+             addAsset(task.assetDesc.fileName, task.assetDesc.type, task.getAsset());
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+index 2b6b849c..73aadb2e 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+@@ -124,7 +124,7 @@ public class SwitchInput extends Input {
+         return prevButtons;
+     }
+ 
+-    /** Stick positions from -1 to 1: left x, left y, right x, right y (y is up). */
++    /** Stick positions from -1 to 1: left x, left y, right x, right y (y is down, as with other controllers). */
+     public float getControllerAxis(int axis) {
+         return axes[axis];
+     }
+-- 
+2.43.0
+

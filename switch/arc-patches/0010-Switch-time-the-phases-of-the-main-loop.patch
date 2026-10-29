@@ -1,0 +1,53 @@
+From 791db503129026aa93d4cf0362ba851f7876c321 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 27 Oct 2026 11:56:08 +0000
+Subject: [PATCH 10/12] Switch: time the phases of the main loop
+
+---
+ .../src/arc/backend/switchgdx/SwitchApplication.java | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+index bc9c4636..c4bcb47b 100644
+--- a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+@@ -13,6 +13,9 @@ public class SwitchApplication implements Application {
+     private final Seq<ApplicationListener> listeners = new Seq<>();
+     private final TaskQueue runnables = new TaskQueue();
+     private boolean running;
++    /** Wall time of the last frame's phases in ns: the native update (event polling and buffer swap), the backend
++     * updates before the listeners, the previous frame's listeners, and the posted runnables. */
++    public static long lastNativeNs, lastPreListenNs, lastListenNs, lastRunnablesNs;
+ 
+     public static final boolean isSwitch = System.getProperty("os.name").equals("horizon");
+     public static final boolean isUWP = System.getProperty("os.name").equals("uwp");
+@@ -40,7 +43,10 @@ public class SwitchApplication implements Application {
+             listen(ApplicationListener::init);
+             
+             int width = 0, height = 0;
++            long nativeStart = System.nanoTime();
+             while (running && update()) {
++                long frameStart = System.nanoTime();
++                lastNativeNs = frameStart - nativeStart;
+                 int currentWidth = graphics.getWidth();
+                 int currentHeight = graphics.getHeight();
+                 if (currentWidth != width || currentHeight != height) {
+@@ -52,9 +58,15 @@ public class SwitchApplication implements Application {
+                 graphics.update();
+                 input.update();
+                 defaultUpdate();
++                long listenStart = System.nanoTime();
++                lastPreListenNs = listenStart - frameStart;
+                 listen(ApplicationListener::update);
++                long runStart = System.nanoTime();
++                lastListenNs = runStart - listenStart;
+                 runnables.run();
+                 input.postUpdate();
++                nativeStart = System.nanoTime();
++                lastRunnablesNs = nativeStart - runStart;
+             }
+         } catch (Throwable t) {
+             System.out.println("Uncaught Exception:");
+-- 
+2.43.0
+

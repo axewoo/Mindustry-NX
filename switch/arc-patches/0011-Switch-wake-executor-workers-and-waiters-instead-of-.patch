@@ -1,0 +1,115 @@
+From ddb98ae5a68b60185fac341572b286c5ee374d9e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 27 Oct 2026 17:15:37 +0000
+Subject: [PATCH 11/12] Switch: wake executor workers and waiters instead of
+ polling
+
+SimpleExecutorService workers slept 10 ms between polls and Future.get slept
+1 ms per check, and Core.executor had a single worker because the VM reports
+one processor. Unit physics submits four tasks per frame to it, so a wave
+spent about 40 ms per frame waiting. Use bounded wait/notify and three workers.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01YUVwkCgPqRUQeh1MD58tuc
+---
+ arc-core/src/arc/Core.java                    |  3 +-
+ .../src/arc/util/SimpleExecutorService.java   | 39 +++++++++++--------
+ 2 files changed, 24 insertions(+), 18 deletions(-)
+
+diff --git a/arc-core/src/arc/Core.java b/arc-core/src/arc/Core.java
+index 5f5f354c..a05a19fe 100644
+--- a/arc-core/src/arc/Core.java
++++ b/arc-core/src/arc/Core.java
+@@ -29,7 +29,8 @@ public class Core{
+     public static Scene scene;
+     public static AssetManager assets;
+     public static TextureAtlas atlas;
+-    public static ExecutorService executor = OS.isSwitchGdx ? new SimpleExecutorService("Main Executor", OS.cores) : Threads.executor("Main Executor", OS.cores);
++    /** On the Switch, one worker per application core (the VM reports a single processor). */
++    public static ExecutorService executor = OS.isSwitchGdx ? new SimpleExecutorService("Main Executor", 3) : Threads.executor("Main Executor", OS.cores);
+ 
+     public static GL20 gl;
+     public static GL20 gl20;
+diff --git a/arc-core/src/arc/util/SimpleExecutorService.java b/arc-core/src/arc/util/SimpleExecutorService.java
+index e5971081..88d5d480 100644
+--- a/arc-core/src/arc/util/SimpleExecutorService.java
++++ b/arc-core/src/arc/util/SimpleExecutorService.java
+@@ -22,16 +22,17 @@ public class SimpleExecutorService implements ExecutorService, Runnable {
+     @Override
+     public void run() {
+         while (!terminated) {
+-            Task task = null;
++            Task task;
+             synchronized (this) {
+-                if (!tasks.isEmpty())
+-                    task = tasks.remove(0);
+-            }
+-            if (task == null) {
+-                try {
+-                    Thread.sleep(10);
+-                } catch (InterruptedException e) {}
+-                continue;
++                // Clearwing's wait() can miss a notify, so never wait unbounded
++                while (tasks.isEmpty() && !terminated) {
++                    try {
++                        wait(2);
++                    } catch (InterruptedException e) {}
++                }
++                if (terminated)
++                    break;
++                task = tasks.remove(0);
+             }
+             task.run();
+         }
+@@ -78,6 +79,7 @@ public class SimpleExecutorService implements ExecutorService, Runnable {
+     public synchronized <T> Future<T> submit(Callable<T> callable) {
+         Task task = new Task(callable);
+         tasks.add(task);
++        notify();
+         return (Future<T>) task;
+     }
+ 
+@@ -85,6 +87,7 @@ public class SimpleExecutorService implements ExecutorService, Runnable {
+     public synchronized <T> Future<T> submit(Runnable runnable, T t) {
+         Task task = new Task(runnable, t);
+         tasks.add(task);
++        notify();
+         return (Future<T>) task;
+     }
+ 
+@@ -213,7 +216,10 @@ public class SimpleExecutorService implements ExecutorService, Runnable {
+             } catch (Throwable exception) {
+                 this.exception = exception;
+             }
+-            done = true;
++            synchronized (this) {
++                done = true;
++                notifyAll();
++            }
+         }
+         
+         @Override
+@@ -235,14 +241,13 @@ public class SimpleExecutorService implements ExecutorService, Runnable {
+ 
+         @Override
+         public Object get() throws InterruptedException, ExecutionException {
+-            while (true) {
+-                if (done) {
+-                    if (exception != null)
+-                        throw new ExecutionException(exception);
+-                    return retVal;
+-                }
+-                Thread.sleep(1);
++            synchronized (this) {
++                while (!done && !cancelled)
++                    wait(1);
+             }
++            if (exception != null)
++                throw new ExecutionException(exception);
++            return retVal;
+         }
+ 
+         @Override
+-- 
+2.43.0
+

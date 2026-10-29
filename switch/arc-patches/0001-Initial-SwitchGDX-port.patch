@@ -1,0 +1,1354 @@
+From ca015de3cbad3c9acfcb9f64554eb4aac46b4e70 Mon Sep 17 00:00:00 2001
+From: Justin Marentette <justinmarentette11@gmail.com>
+Date: Tue, 19 Nov 2024 20:39:06 -0500
+Subject: [PATCH 01/12] Initial SwitchGDX port
+
+---
+ arc-core/src/arc/util/Http.java               | 146 +++---
+ arc-core/src/arc/util/io/Reads.java           |  11 +
+ backends/backend-switchgdx/build.gradle       |   5 +
+ .../backend/switchgdx/SwitchApplication.java  | 156 ++++++
+ .../arc/backend/switchgdx/SwitchFiles.java    |  94 ++++
+ .../src/arc/backend/switchgdx/SwitchGL.java   | 462 ++++++++++++++++++
+ .../arc/backend/switchgdx/SwitchGraphics.java | 193 ++++++++
+ .../arc/backend/switchgdx/SwitchInput.java    | 183 +++++++
+ settings.gradle                               |   1 +
+ 9 files changed, 1178 insertions(+), 73 deletions(-)
+ create mode 100644 backends/backend-switchgdx/build.gradle
+ create mode 100644 backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+ create mode 100644 backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchFiles.java
+ create mode 100755 backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGL.java
+ create mode 100644 backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java
+ create mode 100644 backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+
+diff --git a/arc-core/src/arc/util/Http.java b/arc-core/src/arc/util/Http.java
+index c172c5e3..c0395ac5 100644
+--- a/arc-core/src/arc/util/Http.java
++++ b/arc-core/src/arc/util/Http.java
+@@ -242,79 +242,79 @@ public class Http{
+ 
+         /** Blocks until this request is done. */
+         public void block(ConsT<HttpResponse, Exception> success){
+-            if(url == null){
+-                errorHandler.get(new ArcRuntimeException("can't process a HTTP request without URL set"));
+-                return;
+-            }
+-
+-            try{
+-                URL url;
+-
+-                if(method == HttpMethod.GET){
+-                    String queryString = "";
+-                    String value = content;
+-                    if(value != null && !"".equals(value)) queryString = "?" + value;
+-                    url = new URL(this.url + queryString);
+-                }else{
+-                    url = new URL(this.url);
+-                }
+-
+-                HttpURLConnection connection = (HttpURLConnection)url.openConnection();
+-                //should be enabled to upload data.
+-                boolean doingOutPut = method == HttpMethod.POST || method == HttpMethod.PUT;
+-                connection.setDoOutput(doingOutPut);
+-                connection.setDoInput(true);
+-                connection.setRequestMethod(method.toString());
+-                HttpURLConnection.setFollowRedirects(followRedirects);
+-
+-                //set headers
+-                headers.each(connection::addRequestProperty);
+-
+-                //timeouts
+-                connection.setConnectTimeout(timeout);
+-                connection.setReadTimeout(timeout);
+-
+-                try{
+-                    // Set the content for POST and PUT (GET has the information embedded in the URL)
+-                    if(doingOutPut){
+-                        // we probably need to use the content as stream here instead of using it as a string.
+-                        if(content != null){
+-                            try(OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream(), Strings.utf8)){
+-                                writer.write(content);
+-                            }
+-                        }else{
+-                            if(contentStream != null){
+-                                try(OutputStream os = connection.getOutputStream()){
+-                                    Streams.copy(contentStream, os);
+-                                }
+-                            }
+-                        }
+-                    }
+-
+-                    connection.connect();
+-
+-                    try{
+-                        int code = connection.getResponseCode();
+-
+-                        //4xx or 5xx error
+-                        if(code >= 400){
+-                            HttpStatus status = HttpStatus.byCode(code);
+-                            errorHandler.get(new HttpStatusException("HTTP request failed with error: " + code + " (" + status + ", URL = " + url + ")", status, new HttpResponse(connection)));
+-                        }else{
+-                            success.get(new HttpResponse(connection));
+-                        }
+-
+-                    }finally{
+-                        connection.disconnect();
+-                    }
+-
+-                }catch(Throwable e){
+-                    connection.disconnect();
+-                    errorHandler.get(e);
+-                }
+-            }catch(Throwable e){
+-                errorHandler.get(e);
+-            }
++//            if(url == null){
++//                errorHandler.get(new ArcRuntimeException("can't process a HTTP request without URL set"));
++//                return;
++//            }
++//
++//            try{
++//                URL url;
++//
++//                if(method == HttpMethod.GET){
++//                    String queryString = "";
++//                    String value = content;
++//                    if(value != null && !"".equals(value)) queryString = "?" + value;
++//                    url = new URL(this.url + queryString);
++//                }else{
++//                    url = new URL(this.url);
++//                }
++//
++//                HttpURLConnection connection = (HttpURLConnection)url.openConnection();
++//                //should be enabled to upload data.
++//                boolean doingOutPut = method == HttpMethod.POST || method == HttpMethod.PUT;
++//                connection.setDoOutput(doingOutPut);
++//                connection.setDoInput(true);
++//                connection.setRequestMethod(method.toString());
++//                HttpURLConnection.setFollowRedirects(followRedirects);
++//
++//                //set headers
++//                headers.each(connection::addRequestProperty);
++//
++//                //timeouts
++//                connection.setConnectTimeout(timeout);
++//                connection.setReadTimeout(timeout);
++//
++//                try{
++//                    // Set the content for POST and PUT (GET has the information embedded in the URL)
++//                    if(doingOutPut){
++//                        // we probably need to use the content as stream here instead of using it as a string.
++//                        if(content != null){
++//                            try(OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream(), Strings.utf8)){
++//                                writer.write(content);
++//                            }
++//                        }else{
++//                            if(contentStream != null){
++//                                try(OutputStream os = connection.getOutputStream()){
++//                                    Streams.copy(contentStream, os);
++//                                }
++//                            }
++//                        }
++//                    }
++//
++//                    connection.connect();
++//
++//                    try{
++//                        int code = connection.getResponseCode();
++//
++//                        //4xx or 5xx error
++//                        if(code >= 400){
++//                            HttpStatus status = HttpStatus.byCode(code);
++//                            errorHandler.get(new HttpStatusException("HTTP request failed with error: " + code + " (" + status + ", URL = " + url + ")", status, new HttpResponse(connection)));
++//                        }else{
++//                            success.get(new HttpResponse(connection));
++//                        }
++//
++//                    }finally{
++//                        connection.disconnect();
++//                    }
++//
++//                }catch(Throwable e){
++//                    connection.disconnect();
++//                    errorHandler.get(e);
++//                }
++//            }catch(Throwable e){
++//                errorHandler.get(e);
++//            }
+         }
+     }
+ 
+diff --git a/arc-core/src/arc/util/io/Reads.java b/arc-core/src/arc/util/io/Reads.java
+index 47ed8ee4..9a95c030 100644
+--- a/arc-core/src/arc/util/io/Reads.java
++++ b/arc-core/src/arc/util/io/Reads.java
+@@ -3,6 +3,7 @@ package arc.util.io;
+ import arc.util.*;
+ 
+ import java.io.*;
++import java.lang.reflect.Field;
+ 
+ /** A wrapper for DataInput with more concise method names and no IOExceptions. */
+ public class Reads implements Closeable{
+@@ -20,6 +21,16 @@ public class Reads implements Closeable{
+     public static Reads get(DataInput input){
+         return new Reads(input);
+     }
++    
++    public int count() {
++        try {
++            Field field = FilterInputStream.class.getDeclaredField("in");
++            field.setAccessible(true);
++            return ((CounterInputStream)field.get(input)).count;
++        } catch (Exception ex) {
++            return 0;
++        }
++    }
+ 
+     /** @return -1 if EOF or unsupported, or the next byte. */
+     public int checkEOF(){
+diff --git a/backends/backend-switchgdx/build.gradle b/backends/backend-switchgdx/build.gradle
+new file mode 100644
+index 00000000..2e82c092
+--- /dev/null
++++ b/backends/backend-switchgdx/build.gradle
+@@ -0,0 +1,5 @@
++sourceSets.main.java.srcDirs = ["src"]
++
++dependencies {
++    testImplementation aproj(":arc-core")
++}
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+new file mode 100644
+index 00000000..aa0d13ed
+--- /dev/null
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchApplication.java
+@@ -0,0 +1,156 @@
++package arc.backend.switchgdx;
++
++import arc.Application;
++import arc.ApplicationListener;
++import arc.Core;
++import arc.Settings;
++import arc.audio.Audio;
++import arc.func.Cons;
++import arc.struct.Seq;
++import arc.util.TaskQueue;
++
++public class SwitchApplication implements Application {
++    private final Seq<ApplicationListener> listeners = new Seq<>();
++    private final TaskQueue runnables = new TaskQueue();
++    private boolean running;
++
++    public static final boolean isSwitch = System.getProperty("os.name").equals("horizon");
++    public static final boolean isUWP = System.getProperty("os.name").equals("uwp");
++    
++    final SwitchGraphics graphics;
++    final SwitchInput input;
++    final Config config;
++    
++    public SwitchApplication(ApplicationListener listener, Config config) {
++        init(config.vsync);
++        
++        this.config = config;
++        listeners.add(listener);
++
++        Core.app = this;
++        Core.files = new SwitchFiles();
++        Core.graphics = graphics = new SwitchGraphics();
++        Core.input = input = new SwitchInput();
++        Core.settings = new Settings();
++        Core.audio = new Audio();
++
++        running = true;
++        
++        try {
++            listen(ApplicationListener::init);
++            
++            int width = 0, height = 0;
++            while (running && update()) {
++                int currentWidth = graphics.getWidth();
++                int currentHeight = graphics.getHeight();
++                if (currentWidth != width || currentHeight != height) {
++                    width = currentWidth;
++                    height = currentHeight;
++                    listener.resize(width, height);
++                }
++
++                graphics.update();
++//                audio.update(graphics.getDeltaTime());
++                input.update();
++//                controllerManager.update();
++//                Timer.instance().update();
++                defaultUpdate();
++                listen(ApplicationListener::update);
++                runnables.run();
++                
++//                System.gc();
++            }
++        } catch (Throwable t) {
++            System.out.println("Uncaught Exception:");
++            t.printStackTrace();
++            System.err.println("Message: " + t.getMessage());
++            Throwable cause = t.getCause();
++            while (cause != null) {
++                System.err.println("Message: " + cause.getMessage());
++                cause = cause.getCause();
++            }
++        }
++        
++        dispose0();
++
++        System.exit(0);
++    }
++    
++    @Override
++    public Seq<ApplicationListener> getListeners() {
++        return listeners;
++    }
++
++    @Override
++    public ApplicationType getType() {
++        return ApplicationType.android;
++    }
++
++    @Override
++    public String getClipboardText() {
++        return "";
++    }
++
++    @Override
++    public void setClipboardText(String text) {
++    }
++
++    @Override
++    public void post(Runnable runnable) {
++        runnables.post(runnable);
++    }
++
++    @Override
++    public void exit() {
++        post(() -> running = false);
++    }
++
++    private void listen(Cons<ApplicationListener> cons){
++        synchronized(listeners){
++            for(ApplicationListener l : listeners){
++                cons.get(l);
++            }
++        }
++    }
++
++    private static native void init(boolean vsync);
++
++    private static native boolean update();
++
++    private static native void dispose0();
++
++    public static class Config {
++
++        private boolean vsync = true;
++
++        private ApplicationType appType = ApplicationType.android;
++
++        public Config() {
++        }
++
++        public Config(boolean vsync) {
++            this.vsync = vsync;
++        }
++
++        public Config(boolean vsync, ApplicationType appType) {
++            this.vsync = vsync;
++            this.appType = appType;
++        }
++
++        public boolean getVsync() {
++            return vsync;
++        }
++
++        public void setVsync(boolean vsync) {
++            this.vsync = vsync;
++        }
++
++        public ApplicationType getAppType() {
++            return appType;
++        }
++
++        public void setAppType(ApplicationType appType) {
++            this.appType = appType;
++        }
++    }
++}
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchFiles.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchFiles.java
+new file mode 100644
+index 00000000..7f3b4715
+--- /dev/null
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchFiles.java
+@@ -0,0 +1,94 @@
++package arc.backend.switchgdx;
++
++import arc.Core;
++import arc.Files;
++import arc.files.Fi;
++import arc.util.ArcRuntimeException;
++
++import java.io.File;
++import java.nio.ByteBuffer;
++import java.nio.channels.FileChannel;
++
++public class SwitchFiles implements Files {
++    @Override
++    public Fi get(String path, FileType type) {
++        if (type == FileType.classpath) {
++            type = FileType.internal;
++            path = "classpath/" + path;
++        }
++        return new SwitchFi(path, type);
++    }
++    
++    @Override
++    public String getExternalStoragePath () {
++        return SwitchApplication.isSwitch ? "sdmc:" : "sdmc";
++    }
++
++    @Override
++    public boolean isExternalStorageAvailable () {
++        return true;
++    }
++
++    @Override
++    public native String getLocalStoragePath ();
++
++    @Override
++    public boolean isLocalStorageAvailable () {
++        return true;
++    }
++    
++    public static class SwitchFi extends Fi {
++        public SwitchFi (String fileName, Files.FileType type) {
++            super(fileName, type);
++        }
++
++        public SwitchFi (File file, Files.FileType type) {
++            super(file, type);
++        }
++
++        @Override
++        public Fi child (String name) {
++            if (file.getPath().length() == 0) return new SwitchFi(new File(name), type);
++            return new SwitchFi(new File(file, name), type);
++        }
++
++        @Override
++        public Fi sibling (String name) {
++            if (file.getPath().length() == 0) throw new ArcRuntimeException("Cannot get the sibling of the root.");
++            return new SwitchFi(new File(file.getParent(), name), type);
++        }
++
++        @Override
++        public Fi parent () {
++            File parent = file.getParentFile();
++            if (parent == null) {
++                if (type == Files.FileType.absolute)
++                    parent = new File("/");
++                else
++                    parent = new File("");
++            }
++            return new SwitchFi(parent, type);
++        }
++
++        @Override
++        public File file () {
++            if (type == FileType.internal)
++                return new File(SwitchApplication.isSwitch ? "romfs:" : (SwitchApplication.isUWP ? "" : "romfs"), file.getPath());
++            if (type == FileType.local)
++                return new File(Core.files.getLocalStoragePath(), file.getPath());
++            return super.file();
++        }
++
++        @Override
++        public boolean isDirectory() {
++            if (path().startsWith("classpath/"))
++                return false;
++            return super.isDirectory();
++        }
++
++        @Override
++        public ByteBuffer map (FileChannel.MapMode mode) {
++            throw new ArcRuntimeException("Cannot map files in Switch backend");
++        }
++    }
++}
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGL.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGL.java
+new file mode 100755
+index 00000000..c1cd944c
+--- /dev/null
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGL.java
+@@ -0,0 +1,462 @@
++package arc.backend.switchgdx;
++
++import arc.graphics.GL20;
++
++import java.nio.Buffer;
++import java.nio.FloatBuffer;
++import java.nio.IntBuffer;
++
++public class SwitchGL implements GL20 {
++	@Override
++	public native void glActiveTexture (int texture);
++
++	@Override
++	public native void glBindTexture (int target, int texture);
++
++	@Override
++	public native void glBlendFunc (int sfactor, int dfactor);
++
++	@Override
++	public native void glClear (int mask);
++
++	@Override
++	public native void glClearColor (float red, float green, float blue, float alpha);
++
++	@Override
++	public native void glClearDepthf (float depth);
++
++	@Override
++	public native void glClearStencil (int s);
++
++	@Override
++	public native void glColorMask (boolean red, boolean green, boolean blue, boolean alpha);
++
++	@Override
++	public native void glCompressedTexImage2D (int target, int level, int internalformat, int width, int height, int border, int imageSize, Buffer data);
++
++	@Override
++	public native void glCompressedTexSubImage2D (int target, int level, int xoffset, int yoffset, int width, int height, int format, int imageSize, Buffer data);
++
++	@Override
++	public native void glCopyTexImage2D (int target, int level, int internalformat, int x, int y, int width, int height, int border);
++
++	@Override
++	public native void glCopyTexSubImage2D (int target, int level, int xoffset, int yoffset, int x, int y, int width, int height);
++
++	@Override
++	public native void glCullFace (int mode);
++
++	@Override
++	public native void glDeleteTexture (int texture);
++
++	@Override
++	public native void glDepthFunc (int func);
++
++	@Override
++	public native void glDepthMask (boolean flag);
++
++	@Override
++	public native void glDepthRangef (float zNear, float zFar);
++
++	@Override
++	public native void glDisable (int cap);
++
++	@Override
++	public native void glDrawArrays (int mode, int first, int count);
++
++	@Override
++	public native void glDrawElements (int mode, int count, int type, Buffer indices);
++
++	@Override
++	public native void glEnable (int cap);
++
++	@Override
++	public native void glFinish ();
++
++	@Override
++	public native void glFlush ();
++
++	@Override
++	public native void glFrontFace (int mode);
++
++	@Override
++	public native int glGenTexture ();
++
++	@Override
++	public native int glGetError ();
++
++	@Override
++	public native void glGetIntegerv (int pname, IntBuffer params);
++
++	@Override
++	public native String glGetString (int name);
++
++	@Override
++	public native void glHint (int target, int mode);
++
++	@Override
++	public native void glLineWidth (float width);
++
++	@Override
++	public native void glPixelStorei (int pname, int param);
++
++	@Override
++	public native void glPolygonOffset (float factor, float units);
++
++	@Override
++	public native void glReadPixels (int x, int y, int width, int height, int format, int type, Buffer pixels);
++
++	@Override
++	public native void glScissor (int x, int y, int width, int height);
++
++	@Override
++	public native void glStencilFunc (int func, int ref, int mask);
++
++	@Override
++	public native void glStencilMask (int mask);
++
++	@Override
++	public native void glStencilOp (int fail, int zfail, int zpass);
++
++	@Override
++	public native void glTexImage2D (int target, int level, int internalformat, int width, int height, int border, int format, int type, Buffer pixels);
++
++	@Override
++	public native void glTexParameterf (int target, int pname, float param);
++
++	@Override
++	public native void glTexSubImage2D (int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, Buffer pixels);
++
++	@Override
++	public native void glViewport (int x, int y, int width, int height);
++
++	@Override
++	public native void glAttachShader (int program, int shader);
++
++	@Override
++	public native void glBindAttribLocation (int program, int index, String name);
++
++	@Override
++	public native void glBindBuffer (int target, int buffer);
++
++	@Override
++	public native void glBindFramebuffer (int target, int framebuffer);
++
++	@Override
++	public native void glBindRenderbuffer (int target, int renderbuffer);
++
++	@Override
++	public native void glBlendColor (float red, float green, float blue, float alpha);
++
++	@Override
++	public native void glBlendEquation (int mode);
++
++	@Override
++	public native void glBlendEquationSeparate (int modeRGB, int modeAlpha);
++
++	@Override
++	public native void glBlendFuncSeparate (int srcRGB, int dstRGB, int srcAlpha, int dstAlpha);
++
++	@Override
++	public native void glBufferData (int target, int size, Buffer data, int usage);
++
++	@Override
++	public native void glBufferSubData (int target, int offset, int size, Buffer data);
++
++	@Override
++	public native int glCheckFramebufferStatus (int target);
++
++	@Override
++	public native void glCompileShader (int shader);
++
++	@Override
++	public native int glCreateProgram ();
++
++	@Override
++	public native int glCreateShader (int type);
++
++	@Override
++	public native void glDeleteBuffer (int buffer);
++
++	@Override
++	public native void glDeleteFramebuffer (int framebuffer);
++
++	@Override
++	public native void glDeleteProgram (int program);
++
++	@Override
++	public native void glDeleteRenderbuffer (int renderbuffer);
++
++	@Override
++	public native void glDeleteShader (int shader);
++
++	@Override
++	public native void glDetachShader (int program, int shader);
++
++	@Override
++	public native void glDisableVertexAttribArray (int index);
++
++	@Override
++	public native void glDrawElements (int mode, int count, int type, int indices);
++
++	@Override
++	public native void glEnableVertexAttribArray (int index);
++
++	@Override
++	public native void glFramebufferRenderbuffer (int target, int attachment, int renderbuffertarget, int renderbuffer);
++
++	@Override
++	public native void glFramebufferTexture2D (int target, int attachment, int textarget, int texture, int level);
++
++	@Override
++	public native int glGenBuffer ();
++
++	@Override
++	public native void glGenerateMipmap (int target);
++
++	@Override
++	public native int glGenFramebuffer ();
++
++	@Override
++	public native int glGenRenderbuffer ();
++
++	@Override
++	public native String glGetActiveAttrib (int program, int index, IntBuffer size, IntBuffer type);
++
++	@Override
++	public native String glGetActiveUniform (int program, int index, IntBuffer size, IntBuffer type);
++
++	@Override
++	public native int glGetAttribLocation (int program, String name);
++
++	@Override
++	public native void glGetBooleanv (int pname, Buffer params);
++
++	@Override
++	public native void glGetBufferParameteriv (int target, int pname, IntBuffer params);
++
++	@Override
++	public native void glGetFloatv (int pname, FloatBuffer params);
++
++	@Override
++	public native void glGetFramebufferAttachmentParameteriv (int target, int attachment, int pname, IntBuffer params);
++
++	@Override
++	public native void glGetProgramiv (int program, int pname, IntBuffer params);
++
++	@Override
++	public native String glGetProgramInfoLog (int program);
++
++	@Override
++	public native void glGetRenderbufferParameteriv (int target, int pname, IntBuffer params);
++
++	@Override
++	public native void glGetShaderiv (int shader, int pname, IntBuffer params);
++
++	@Override
++	public native String glGetShaderInfoLog (int shader);
++
++	@Override
++	public native void glGetShaderPrecisionFormat (int shadertype, int precisiontype, IntBuffer range, IntBuffer precision);
++
++	@Override
++	public native void glGetTexParameterfv (int target, int pname, FloatBuffer params);
++
++	@Override
++	public native void glGetTexParameteriv (int target, int pname, IntBuffer params);
++
++	@Override
++	public native void glGetUniformfv (int program, int location, FloatBuffer params);
++
++	@Override
++	public native void glGetUniformiv (int program, int location, IntBuffer params);
++
++	@Override
++	public native int glGetUniformLocation (int program, String name);
++
++	@Override
++	public native void glGetVertexAttribfv (int index, int pname, FloatBuffer params);
++
++	@Override
++	public native void glGetVertexAttribiv (int index, int pname, IntBuffer params);
++
++	@Override
++	public native boolean glIsBuffer (int buffer);
++
++	@Override
++	public native boolean glIsEnabled (int cap);
++
++	@Override
++	public native boolean glIsFramebuffer (int framebuffer);
++
++	@Override
++	public native boolean glIsProgram (int program);
++
++	@Override
++	public native boolean glIsRenderbuffer (int renderbuffer);
++
++	@Override
++	public native boolean glIsShader (int shader);
++
++	@Override
++	public native boolean glIsTexture (int texture);
++
++	@Override
++	public native void glLinkProgram (int program);
++
++	@Override
++	public native void glReleaseShaderCompiler ();
++
++	@Override
++	public native void glRenderbufferStorage (int target, int internalformat, int width, int height);
++
++	@Override
++	public native void glSampleCoverage (float value, boolean invert);
++
++	@Override
++	public native void glShaderSource (int shader, String string);
++
++	@Override
++	public native void glStencilFuncSeparate (int face, int func, int ref, int mask);
++
++	@Override
++	public native void glStencilMaskSeparate (int face, int mask);
++
++	@Override
++	public native void glStencilOpSeparate (int face, int fail, int zfail, int zpass);
++
++	@Override
++	public native void glTexParameterfv (int target, int pname, FloatBuffer params);
++
++	@Override
++	public native void glTexParameteri (int target, int pname, int param);
++
++	@Override
++	public native void glTexParameteriv (int target, int pname, IntBuffer params);
++
++	@Override
++	public native void glUniform1f (int location, float x);
++
++	@Override
++	public native void glUniform1fv (int location, int count, FloatBuffer v);
++
++	@Override
++	public native void glUniform1fv (int location, int count, float[] v, int offset);
++
++	@Override
++	public native void glUniform1i (int location, int x);
++
++	@Override
++	public native void glUniform1iv (int location, int count, IntBuffer v);
++
++	@Override
++	public native void glUniform1iv (int location, int count, int[] v, int offset);
++
++	@Override
++	public native void glUniform2f (int location, float x, float y);
++
++	@Override
++	public native void glUniform2fv (int location, int count, FloatBuffer v);
++
++	@Override
++	public native void glUniform2fv (int location, int count, float[] v, int offset);
++
++	@Override
++	public native void glUniform2i (int location, int x, int y);
++
++	@Override
++	public native void glUniform2iv (int location, int count, IntBuffer v);
++
++	@Override
++	public native void glUniform2iv (int location, int count, int[] v, int offset);
++
++	@Override
++	public native void glUniform3f (int location, float x, float y, float z);
++
++	@Override
++	public native void glUniform3fv (int location, int count, FloatBuffer v);
++
++	@Override
++	public native void glUniform3fv (int location, int count, float[] v, int offset);
++
++	@Override
++	public native void glUniform3i (int location, int x, int y, int z);
++
++	@Override
++	public native void glUniform3iv (int location, int count, IntBuffer v);
++
++	@Override
++	public native void glUniform3iv (int location, int count, int[] v, int offset);
++
++	@Override
++	public native void glUniform4f (int location, float x, float y, float z, float w);
++
++	@Override
++	public native void glUniform4fv (int location, int count, FloatBuffer v);
++
++	@Override
++	public native void glUniform4fv (int location, int count, float[] v, int offset);
++
++	@Override
++	public native void glUniform4i (int location, int x, int y, int z, int w);
++
++	@Override
++	public native void glUniform4iv (int location, int count, IntBuffer v);
++
++	@Override
++	public native void glUniform4iv (int location, int count, int[] v, int offset);
++
++	@Override
++	public native void glUniformMatrix2fv (int location, int count, boolean transpose, FloatBuffer value);
++
++	@Override
++	public native void glUniformMatrix2fv (int location, int count, boolean transpose, float[] value, int offset);
++
++	@Override
++	public native void glUniformMatrix3fv (int location, int count, boolean transpose, FloatBuffer value);
++
++	@Override
++	public native void glUniformMatrix3fv (int location, int count, boolean transpose, float[] value, int offset);
++
++	@Override
++	public native void glUniformMatrix4fv (int location, int count, boolean transpose, FloatBuffer value);
++
++	@Override
++	public native void glUniformMatrix4fv (int location, int count, boolean transpose, float[] value, int offset);
++
++	@Override
++	public native void glUseProgram (int program);
++
++	@Override
++	public native void glValidateProgram (int program);
++
++	@Override
++	public native void glVertexAttrib1f (int indx, float x);
++
++	@Override
++	public native void glVertexAttrib1fv (int indx, FloatBuffer values);
++
++	@Override
++	public native void glVertexAttrib2f (int indx, float x, float y);
++
++	@Override
++	public native void glVertexAttrib2fv (int indx, FloatBuffer values);
++
++	@Override
++	public native void glVertexAttrib3f (int indx, float x, float y, float z);
++
++	@Override
++	public native void glVertexAttrib3fv (int indx, FloatBuffer values);
++
++	@Override
++	public native void glVertexAttrib4f (int indx, float x, float y, float z, float w);
++
++	@Override
++	public native void glVertexAttrib4fv (int indx, FloatBuffer values);
++
++	@Override
++	public native void glVertexAttribPointer (int indx, int size, int type, boolean normalized, int stride, Buffer ptr);
++
++	@Override
++	public native void glVertexAttribPointer (int indx, int size, int type, boolean normalized, int stride, int ptr);
++}
+\ No newline at end of file
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java
+new file mode 100644
+index 00000000..ab0b8561
+--- /dev/null
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchGraphics.java
+@@ -0,0 +1,193 @@
++package arc.backend.switchgdx;
++
++import arc.Application;
++import arc.Core;
++import arc.Graphics;
++import arc.graphics.GL20;
++import arc.graphics.GL30;
++import arc.graphics.Pixmap;
++import arc.graphics.gl.GLVersion;
++
++public class SwitchGraphics extends Graphics {
++
++    private final BufferFormat bufferFormat;
++    private final GLVersion glVersion;
++    private final String extensions;
++
++    private float time;
++    private float deltaTime;
++    private long frameId = -1;
++    private int frames;
++    private long previousTime;
++    private int fps;
++
++    public SwitchGraphics () {
++        Core.gl = Core.gl20 = new SwitchGL();
++
++        String versionString = Core.gl.glGetString(GL20.GL_VERSION);
++        String vendorString = Core.gl.glGetString(GL20.GL_VENDOR);
++        String rendererString = Core.gl.glGetString(GL20.GL_RENDERER);
++        glVersion = new GLVersion(Application.ApplicationType.desktop, versionString, vendorString, rendererString);
++
++        extensions = Core.gl.glGetString(GL20.GL_EXTENSIONS);
++
++        bufferFormat = new BufferFormat(8, 8, 8, 8, 24, 8, 0, false);
++
++        previousTime = System.currentTimeMillis();
++    }
++    
++    void update() {
++        long timestamp = System.currentTimeMillis();
++        deltaTime = (Math.max(timestamp - previousTime, 1)) / 1000.f;
++        previousTime = timestamp;
++        time += deltaTime;
++        frameId++;
++        frames++;
++        if (time > 1) {
++            fps = frames;
++            time = 0;
++            frames = 0;
++        }
++    }
++    
++    @Override
++    public GL20 getGL20() {
++        return Core.gl20;
++    }
++
++    @Override
++    public void setGL20(GL20 gl20) {
++    }
++
++    @Override
++    public GL30 getGL30() {
++        return null;
++    }
++
++    @Override
++    public void setGL30(GL30 gl30) {
++    }
++
++    @Override
++    public native int getWidth ();
++
++    @Override
++    public native int getHeight ();
++
++    @Override
++    public int getBackBufferWidth () {
++        return getWidth();
++    }
++
++    @Override
++    public int getBackBufferHeight () {
++        return getHeight();
++    }
++
++    @Override
++    public long getFrameId () {
++        return frameId;
++    }
++
++    @Override
++    public float getDeltaTime () {
++        return deltaTime;
++    }
++
++    @Override
++    public int getFramesPerSecond () {
++        return fps;
++    }
++
++    @Override
++    public GLVersion getGLVersion () {
++        return glVersion;
++    }
++
++    @Override
++    public float getPpiX () {
++        return 160;
++    }
++
++    @Override
++    public float getPpiY () {
++        return 160;
++    }
++
++    @Override
++    public float getPpcX () {
++        return 63;
++    }
++
++    @Override
++    public float getPpcY () {
++        return 63;
++    }
++
++    @Override
++    public float getDensity() {
++        return 1;
++    }
++
++    @Override
++    public boolean setWindowedMode(int width, int height) {
++        return false;
++    }
++
++    @Override
++    public void setTitle(String title) {
++    }
++
++    @Override
++    public void setBorderless(boolean undecorated) {
++    }
++
++    @Override
++    public void setResizable(boolean resizable) {
++    }
++
++    @Override
++    public void setVSync(boolean vsync) {
++    }
++
++    @Override
++    public BufferFormat getBufferFormat() {
++        return bufferFormat;
++    }
++
++    @Override
++    public boolean supportsExtension(String extension) {
++        return extensions.contains(extension);
++    }
++
++    @Override
++    public boolean isContinuousRendering() {
++        return true;
++    }
++
++    @Override
++    public void setContinuousRendering(boolean isContinuous) {
++    }
++
++    @Override
++    public void requestRendering() {
++    }
++
++    @Override
++    public boolean isFullscreen() {
++        return true;
++    }
++
++    @Override
++    public Cursor newCursor(Pixmap pixmap, int xHotspot, int yHotspot) {
++        return null;
++    }
++
++    @Override
++    protected void setCursor(Cursor cursor) {
++    }
++
++    @Override
++    protected void setSystemCursor(Cursor.SystemCursor systemCursor) {
++    }
++}
+diff --git a/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+new file mode 100644
+index 00000000..4b888c2f
+--- /dev/null
++++ b/backends/backend-switchgdx/src/arc/backend/switchgdx/SwitchInput.java
+@@ -0,0 +1,183 @@
++package arc.backend.switchgdx;
++
++import arc.Input;
++import arc.input.InputProcessor;
++import arc.input.KeyCode;
++
++public class SwitchInput extends Input {
++
++    private static final int MAX_TOUCHES = 16;
++    
++    private static final KeyCode[] SWITCH_KEYS = {
++        KeyCode.controllerA, KeyCode.controllerB, KeyCode.controllerX, KeyCode.controllerY,
++        KeyCode.dpadUp, KeyCode.dpadDown, KeyCode.dpadLeft, KeyCode.dpadRight,
++        KeyCode.buttonThumbL, KeyCode.buttonThumbR, KeyCode.buttonSelect, KeyCode.buttonStart,
++        KeyCode.buttonL1, KeyCode.buttonL2, KeyCode.buttonR1, KeyCode.buttonR2,
++    };
++
++    private long currentEventTimeStamp;
++    private final int[] touchData = new int[MAX_TOUCHES * 3];
++    private final int[] previousTouchData = new int[MAX_TOUCHES * 3];
++    private final int[] rawTouchIds = new int[MAX_TOUCHES];
++    private final int[] touchX = new int[MAX_TOUCHES];
++    private final int[] touchY = new int[MAX_TOUCHES];
++    private final int[] deltaX = new int[MAX_TOUCHES];
++    private final int[] deltaY = new int[MAX_TOUCHES];
++    private final boolean[] touched = new boolean[MAX_TOUCHES];
++    private boolean wasJustTouched;
++
++    public SwitchInput () {
++        for (int i = 0; i < MAX_TOUCHES; i++) {
++            previousTouchData[i * 3] = -1;
++            rawTouchIds[i] = -1;
++        }
++    }
++    
++    void update() {
++        currentEventTimeStamp = System.nanoTime();
++        wasJustTouched = false;
++        getTouchData(touchData);
++
++        // Todo: There's probably a better way to optimize this
++
++        for (int i = 0; i < MAX_TOUCHES; i++) {
++            int rawIndex = touchData[i * 3];
++            if (rawIndex == -1)
++                continue;
++            int previousIndex = -1;
++            for (int j = 0; j < MAX_TOUCHES; j++)
++                if (previousTouchData[j * 3] == rawIndex) {
++                    previousIndex = j;
++                    break;
++                }
++            if (previousIndex == -1) {
++                wasJustTouched = true;
++                for (int j = 0; j < MAX_TOUCHES; j++)
++                    if (rawTouchIds[j] == -1) {
++                        touchX[j] = touchData[i * 3 + 1];
++                        touchY[j] = touchData[i * 3 + 2];
++                        touched[j] = true;
++                        rawTouchIds[j] = rawIndex;
++                        inputMultiplexer.touchDown(touchData[i * 3 + 1], touchData[i * 3 + 2], j, KeyCode.mouseLeft);
++                        break;
++                    }
++            } else if (touchData[i * 3 + 1] != previousTouchData[previousIndex * 3 + 1] || touchData[i * 3 + 2] != previousTouchData[previousIndex * 3 + 2]) {
++                for (int j = 0; j < MAX_TOUCHES; j++)
++                    if (rawTouchIds[j] == rawIndex) {
++                        deltaX[j] = touchData[i * 3 + 1] - touchX[j];
++                        deltaY[j] = touchData[i * 3 + 2] - touchY[j];
++                        touchX[j] = touchData[i * 3 + 1];
++                        touchY[j] = touchData[i * 3 + 2];
++                        inputMultiplexer.touchDragged(touchData[i * 3 + 1], touchData[i * 3 + 2], j);
++                        break;
++                    }
++            }
++        }
++
++        for (int i = 0; i < MAX_TOUCHES; i++) {
++            int rawPreviousIndex = previousTouchData[i * 3];
++            if (rawPreviousIndex == -1)
++                continue;
++            int index = -1;
++            for (int j = 0; j < MAX_TOUCHES; j++)
++                if (touchData[j * 3] == rawPreviousIndex) {
++                    index = j;
++                    break;
++                }
++            if (index == -1) {
++                for (int j = 0; j < MAX_TOUCHES; j++)
++                    if (rawTouchIds[j] == rawPreviousIndex) {
++                        touchX[j] = previousTouchData[i * 3 + 1];
++                        touchY[j] = previousTouchData[i * 3 + 2];
++                        deltaX[j] = 0;
++                        deltaY[j] = 0;
++                        touched[j] = false;
++                        rawTouchIds[j] = -1;
++                        inputMultiplexer.touchUp(previousTouchData[i * 3 + 1], previousTouchData[i * 3 + 2], j, KeyCode.mouseLeft);
++                        break;
++                    }
++            }
++        }
++
++        System.arraycopy(touchData, 0, previousTouchData, 0, MAX_TOUCHES * 3);
++
++//        SwitchController currentController = (SwitchController)SwitchControllerManager.getInstance().getCurrentController();
++//        for (int key: SWITCH_KEYS) {
++//            int button = keyToButton(key);
++//            if (currentController.getButtonPressed(button) && inputProcessor != null)
++//                inputProcessor.keyDown(key);
++//            if (currentController.getButtonReleased(button) && inputProcessor != null)
++//                inputProcessor.keyUp(key);
++//        }
++    }
++    
++    @Override
++    public int mouseX() {
++        return touchX[0];
++    }
++
++    @Override
++    public int mouseX(int pointer) {
++        return touchX[pointer];
++    }
++
++    @Override
++    public int deltaX() {
++        return deltaX[0];
++    }
++
++    @Override
++    public int deltaX(int pointer) {
++        return deltaX[pointer];
++    }
++
++    @Override
++    public int mouseY() {
++        return touchY[0];
++    }
++
++    @Override
++    public int mouseY(int pointer) {
++        return touchY[pointer];
++    }
++
++    @Override
++    public int deltaY() {
++        return deltaY[0];
++    }
++
++    @Override
++    public int deltaY(int pointer) {
++        return deltaY[pointer];
++    }
++
++    @Override
++    public boolean isTouched() {
++        return touched[0];
++    }
++
++    @Override
++    public boolean justTouched() {
++        return wasJustTouched;
++    }
++
++    @Override
++    public boolean isTouched(int pointer) {
++        return touched[pointer];
++    }
++
++    @Override
++    public long getCurrentEventTime() {
++        return currentEventTimeStamp;
++    }
++
++    @Override
++    public boolean isPeripheralAvailable(Peripheral peripheral) {
++        return peripheral == Peripheral.multitouchScreen;
++    }
++
++    @Override
++    public native void getTextInput(TextInput input);
++    
++    private static native void getTouchData(int[] touchData);
++}
+diff --git a/settings.gradle b/settings.gradle
+index 69fe1159..303c1859 100644
+--- a/settings.gradle
++++ b/settings.gradle
+@@ -19,6 +19,7 @@ include ":backends:backend-headless"
+ include ":backends:backend-sdl"
+ include ":backends:backend-sdl3"
+ include ":backends:backend-robovm"
++include ":backends:backend-switchgdx"
+ 
+ include ":natives"
+ include ":natives:natives-desktop"
+-- 
+2.43.0
+

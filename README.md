@@ -1,69 +1,65 @@
 ![Logo](core/assets-raw/sprites/ui/logo.png)
 
-[![Build Status](https://github.com/Anuken/Mindustry/workflows/Tests/badge.svg?event=push)](https://github.com/Anuken/Mindustry/actions)
-[![Discord](https://img.shields.io/discord/391020510269669376.svg?logo=discord&logoColor=white&logoWidth=20&labelColor=7289DA&label=Discord&color=17cf48)](https://discord.gg/mindustry)  
+# Mindustry-NX
 
-The automation tower defense RTS, written in Java.
+An unofficial Nintendo Switch homebrew port of [Mindustry](https://github.com/Anuken/Mindustry) v160.7, the automation tower defense RTS by [Anuke](https://github.com/Anuken).
 
-_[Trello Board](https://trello.com/b/aE2tcUwF/mindustry-40-plans)_  
-_[Wiki](https://mindustrygame.github.io/wiki)_  
-_[Javadoc](https://mindustrygame.github.io/docs/)_ 
+> **This is a proof of concept.** The game runs and is playable at about 60 fps, but Mindustry is designed for a mouse and keyboard or a touch screen, and it plays better on those. Expect rough edges.
 
-## SwitchGDX
-The [SwitchGDX](https://github.com/TheLogicMaster/switch-gdx) backend enables support for more portable
-target platforms by transpiling to C++ using [Clearwing VM](https://github.com/TheLogicMaster/clearwing-vm).
-The primary target is a Nintendo Switch Homebrew application.
+This port builds on [mindustry-switchgdx](https://github.com/SwitchGDX/mindustry-switchgdx) by [TheLogicMaster](https://github.com/TheLogicMaster), which used the [SwitchGDX](https://github.com/TheLogicMaster/switch-gdx) backend and the [Clearwing VM](https://github.com/TheLogicMaster/clearwing-vm) Java to C++ transpiler to bring Mindustry build 147 to the Switch. Mindustry-NX moves that work to the current Mindustry release and adds controller support and performance fixes.
 
-### Limitations
-- Performance is not amazing
-- No multiplayer/networking support
-- Poor mod support
-- No controller support
+## Installing
+1. Download `Mindustry.nro` from the [releases](https://github.com/axewoo/Mindustry-NX/releases).
+2. Copy it to `/switch/` on the SD card.
+3. Launch it from hbmenu through a game (hold R while launching a game) so it gets the full RAM. Applet mode does not have enough memory.
 
-### Mods
-- This port targets the development version of Mindustry, so mod compatibility is poor ([Asthosus](https://github.com/Catana791/Asthosus) is known working)
-- JavaScript mods currently have issues
-- Mods must be extracted into `mods` directory due to a runtime bug with ZipFile extraction or string encoding
-- Java mods must be extracted into `Mindustry/switch/mods` to be included in the built program (No JIT support)
-and have relevant class packages added to the `switch.json` `reflective` section to prevent classes being optimized out.
+The very first launch takes about 15 minutes while shaders are compiled and cached. Later launches take about 20 seconds. If something goes wrong, `Mindustry.log` next to the NRO has the details.
 
-### Windows
-- - Ensure the project directory is as close to the filesystem root as possible to avoid Windows path limits (In 2025...)
-- Install MSYS2
-- Open a mingw64 shell: `C:\msys64\msys2_shell.cmd -mingw64`
-- Install dependencies: `pacman -S gcc git rsync texinfo mingw-w64-x86_64-cmake mingw-w64-x86_64-zziplib mingw-w64-x86_64-glew mingw-w64-x86_64-SDL2_mixer mingw-w64-x86_64-freetype mingw-w64-x86_64-bullet`
-- Install [devkitPro Updater](https://github.com/devkitPro/installer/releases/latest) with Switch packages selected (Leave downloaded files)
-- Open DevKitPro's MSYS2: `C:\devkitPro\msys2\msys2_shell.cmd -mingw64`
-- Install dependencies: `pacman -S switch-zlib switch-zziplib switch-sdl2_mixer switch-libvorbis switch-freetype switch-glad switch-curl dkp-toolchain-vars texinfo`
-- Build LibFFI for Switch
+## Controls
+Using the controller switches to Mindustry's desktop controls, with the right stick moving a mouse cursor. Touching the game world switches back to the touch controls.
 
-### Linux
-- Install CMake, Ninja, Rsync, Texinfo, SDL2, SDL2_Mixer, GLEW, libffi, zlib, zziplib, freetype
-- With APT: `sudo apt install build-essential texinfo rsync cmake ninja-build libffi-dev libzzip-dev libsdl2-dev libsdl2-mixer-dev zlib1g-dev libglew-dev libfreetype-dev libcurl4-gnutls-dev`
-- Install [devkitPro pacman](https://github.com/devkitPro/pacman/releases/tag/v1.0.2)
-- `dkp-pacman -S switch-zlib switch-sdl2 switch-sdl2_mixer switch-freetype switch-glad switch-curl switch-bulletphysics dkp-toolchain-vars`
-- Build LibFFI for Switch
+| Input | In game | In menus |
+|---|---|---|
+| Left stick | Move the unit (the camera while dead) | |
+| Right stick | Move the cursor (also where you aim) | Move the cursor |
+| A | Left click: place, select, mine, hold to shoot, drag to place a line | Click |
+| B | Right click: cancel, hold and drag to break, order units in command mode | Back |
+| X | Pick the block under the cursor | |
+| Y | Toggle command mode | |
+| L / R | Rotate | |
+| ZL / ZR | Zoom out / in | |
+| D-pad left / right | Choose a block | Nudge the cursor |
+| D-pad up / down | Change the block category | Scroll |
+| L3 | Boost | |
+| R3 | Respawn at the core | Center the cursor |
+| + / − | Menu / pause | Back |
 
-### Switch Homebrew
-- The `NRO` task builds a Homebrew application
-- The `Deploy` task uses NXLink to deploy to a Switch running the Homebrew Launcher
+Quit from the game menu, which closes the game and returns to the Home menu.
 
-### UWP
-- Install CMake for Windows
-- Install Visual Studio 2022 and C++/UWP support (`Desktop development with C++`, `Windows application development`)
-- Run twice (Rebuild) for DLLs and assets to properly be copied for some reason
+## Limitations
+- **No multiplayer.** Clearwing's runtime has no NIO channels or datagram sockets.
+- Occasional short stutters from Clearwing's stop-the-world garbage collector.
+- The main menu background runs at a low frame rate.
+- Mod support is poor: Java mods cannot be loaded and JavaScript mods have issues.
 
-### LibFFI
-This is a library that has to be compiled and installed manually for Switch. Run this for Linux normally and on Windows under MSYS2. Ensure that the working directory doesn't contain any spaces.
-```bash
-git clone https://github.com/libffi/libffi.git
-cd libffi
-./autogen.sh
-source $DEVKITPRO/switchvars.sh
-source $DEVKITPRO/devkita64.sh
-CFLAGS="-g -O2 -march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIC -ftls-model=local-exec" CHOST=aarch64-none-elf ./configure --prefix="$DEVKITPRO/portlibs/switch" --host=aarch64-none-elf
-make install
-```
+## Building
+CI (`.github/workflows/switch.yml`) builds the NRO on every push and attaches it to releases tagged `v*`.
+
+To build locally:
+1. Install devkitPro with the packages listed at the top of `scripts/build-switch.sh`, plus JDK 17, `git`, `unzip`, `rsync`, `python3`, `cmake` and `ninja`.
+2. Build libffi for the Switch once with `sudo -E bash scripts/build-libffi.sh`.
+3. Run `bash scripts/setup-switch-deps.sh`. It checks out Arc next to this repo and applies the Switch patches from `switch/arc-patches/`, then checks out rhino.
+4. Run `bash scripts/build-switch.sh`. The first build transpiles and compiles the whole game and can take over an hour.
+
+## Credits
+- [Anuke](https://github.com/Anuken) and the Mindustry contributors, for [Mindustry](https://github.com/Anuken/Mindustry) and [Arc](https://github.com/Anuken/Arc).
+- [TheLogicMaster](https://github.com/TheLogicMaster), for SwitchGDX, Clearwing VM and the original Switch port.
+
+Mindustry is licensed under the GPLv3, and so is this port. Please report bugs in this port here, not to the upstream Mindustry project.
+
+---
+
+The rest of this file is the upstream Mindustry README.
 
 ## Contributing
 
